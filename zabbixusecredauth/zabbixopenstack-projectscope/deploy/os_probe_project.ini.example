@@ -1,0 +1,61 @@
+# /etc/zabbix/os_probe_project.ini  - chmod 600, owner zabbix
+# Project-scope probe: one [section] per OpenStack project. All sections run in
+# parallel in one process. Separate file from os_probe.ini (cloud scope).
+# Comments must be on their own line (configparser keeps text after a value).
+
+[DEFAULT]
+scope = project
+zabbix_server = 127.0.0.1
+zabbix_port = 10051
+iface = internal
+ca_file =
+http_timeout_ms = 10000
+fast_deadline_ms = 40000
+mid_deadline_ms = 120000
+slow_deadline_ms = 300000
+workers = 4
+stuck_minutes = 60
+list_cap = 1000
+# services not checked at all (swift: RGW/Swift accepts member/admin only; set empty to check swift)
+skip_types = swift
+# L2 roots / Horizon / noVNC and TLS are already checked by the cloud-scope host.
+# 1 = check them here too (they then alert twice when they fail).
+project_l2 = 0
+project_tls = 0
+# Quota usage (Nova/Cinder/Neutron/Octavia/Manila). Off: the project template has no quota items.
+project_quota = 0
+# Error / stuck resource counts. Off: the cloud-scope host already counts them
+# for every project, and the project template has no resource-count items.
+project_resources = 0
+# Something outside OpenStack. With project_l2 = 0 this is the only way to tell
+# "probe host cut off" from "cloud down".
+ref_url = http://GATEWAY-OR-ZABBIX/
+
+[demo]
+# Zabbix host: template OS-API-Probe-Project, host tags scope=project + project=demo,
+# NO az tag (keeps it out of the cloud SLAs)
+zabbix_host = OpenStack project demo
+auth_url = http://INTERNAL-VIP:5000
+# Application credential created INSIDE project "demo" by a user with the member
+# (or reader) role there - no admin, no monitoring role, no policy change:
+#   openstack --os-project-name demo application credential create zbx-probe-demo
+cred_id = CHANGE-ME
+cred_secret = CHANGE-ME
+# tiny image visible to this project (empty = no canary).
+# Leave empty with the reader role: image download is refused (403).
+canary_id =
+# services not checked at all (swift: RGW/Swift accepts member/admin only)
+skip_types = swift
+# checks refused to the reader role (403). Neutron: the OpenSDN config API RBAC
+# allows admin/member only. Rows stay as skipped (-1), so no trigger fires.
+# wildcards ok: heat:stacks* skips every Heat stack check (stacks, stacks_failed,
+# stacks_creating / _updating / _deleting)
+skip_checks = neutron:networks,neutron:subnets,neutron:ports,neutron:routers,neutron:floatingips,neutron:security_groups,neutron:routers_error,neutron:ports_error,neutron:floatingips_error
+catalog_cache = /var/lib/zabbix/os_probe_project_demo.catalog.json
+
+# [another-project]
+# zabbix_host = OpenStack project another-project
+# auth_url = http://INTERNAL-VIP:5000
+# cred_id = CHANGE-ME
+# cred_secret = CHANGE-ME
+# catalog_cache = /var/lib/zabbix/os_probe_project_another-project.catalog.json

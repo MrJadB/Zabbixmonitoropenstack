@@ -1,0 +1,24 @@
+{
+  "zabbix": {"url": "https://ZABBIX/api_jsonrpc.php"},
+  "root": "OpenStack Projects",
+  "dashboard": "OpenStack · ProjectScope",
+  "sla": {
+    "slo": 99.9,
+    "period": "monthly",
+    "timezone": "Asia/Bangkok",
+    "effective_date": "2026-11-01",
+    "excluded_downtimes": []
+  },
+  "projects": [
+    {
+      "name": "demo",
+      "zabbix_host": "OpenStack project demo",
+      "services": ["keystone", "nova", "cinder", "neutron", "glance", "heat", "octavia"]
+    }
+  ],
+  "_help": {
+    "name": "must equal the host tag project=<name> on the Zabbix host",
+    "zabbix_host": "host with template OS-API-Probe-Project = zabbix_host in os_probe_project.ini",
+    "services": "service tags to model - only services in your catalog (else the SLA reads 100%). Possible: keystone nova cinder neutron glance heat octavia barbican trove magnum manila designate swift ironic aodh gnocchi. Omit for keystone..octavia. Optional per-project \"slo\"."
+  }
+}

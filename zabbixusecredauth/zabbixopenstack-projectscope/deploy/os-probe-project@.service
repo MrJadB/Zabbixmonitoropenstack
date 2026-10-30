@@ -1,0 +1,15 @@
+# One unit per tier: os-probe-project@fast / @mid / @slow
+# Same script as the cloud-scope probe, its own ini (scope = project in every section).
+# Runs next to os-probe@*.service on the same proxy host without sharing anything.
+[Unit]
+Description=OpenStack API probe for Zabbix, project scope (%i tier)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=zabbix
+Group=zabbix
+ExecStart=/usr/local/bin/os_probe.py --tier %i --send -c /etc/zabbix/os_probe_project.ini
+TimeoutStartSec=360
+Nice=10

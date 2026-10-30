@@ -1,0 +1,2077 @@
+zabbix_export:
+  version: '6.0'
+  date: '2026-10-27T00:00:00Z'
+  groups:
+  - uuid: 64434e5f307a4d1ea6a34cb447f64166
+    name: Templates/OpenStack
+  templates:
+  - uuid: ed541d4fe8c74933a07fbf86f9b6c8fd
+    template: OS-API-Probe-Project
+    name: OS-API-Probe-Project
+    description: |
+      OpenStack API monitoring of ONE project (scope = project) for Zabbix 6.0.
+
+      DATA: os_probe.py (ini: scope = project) runs on the Zabbix proxy host from 3 systemd timers
+      (os-probe-project@fast|mid|slow) and pushes one JSON per tier to a trapper master.
+        os.probe.fast  every 2m   token, catalog, L3 functional probes of the project
+        os.probe.mid   every 5m   heartbeat only (quota / resource counts off)
+        os.probe.slow  every 30m  Glance canary, credential expiry
+
+      Needs only a member or reader role in the project - no admin API, no policy change.
+
+      SEPARATION FROM OS-API-Probe (cloud scope):
+        every item and trigger has tag scope=project; set host tags scope=project and
+        project=<name> and NO az tag, so cloud Services / SLAs (they need az=<AZ>) never count
+        these problems. Never link this template and OS-API-Probe to the same host.
+
+      STATUS: every check stores the real HTTP code. 0 = no response, -1 = skipped.
+        0 or >= 500 -> impact=availability (project SLA), 400-499 -> impact=monitoring.
+    groups:
+    - name: Templates/OpenStack
+    items:
+    - uuid: f79aececa60942bcbdc1f72d53da97b2
+      name: 'Probe fast: raw JSON'
+      type: TRAP
+      key: os.probe.fast
+      history: '{$OS_PROBE.RAW.HISTORY}'
+      trends: '0'
+      value_type: TEXT
+      description: |-
+        Every {$OS_FAST.INTERVAL} by os-probe-project-fast.timer on the proxy host.
+        Token, catalog, L3 functional probes of this project (L2 roots only with project_l2 = 1).
+        Pushed by: os_probe.py --tier fast --send (ini: scope = project)
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: layer
+        value: L3
+      - tag: component
+        value: os-probe-fast
+    - uuid: c31967ff5d2b42eebaed389c5c0763a3
+      name: 'Probe mid: raw JSON'
+      type: TRAP
+      key: os.probe.mid
+      history: '{$OS_PROBE.RAW.HISTORY}'
+      trends: '0'
+      value_type: TEXT
+      description: |-
+        Every {$OS_MID.INTERVAL} by os-probe-project-mid.timer. Nothing project-specific
+        by default (quota and resource counts are off); kept as a heartbeat.
+        Pushed by: os_probe.py --tier mid --send (ini: scope = project)
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: layer
+        value: L3
+      - tag: component
+        value: os-probe-mid
+    - uuid: b42d9d3a712b4d8381ab42766e17767c
+      name: 'Probe slow: raw JSON'
+      type: TRAP
+      key: os.probe.slow
+      history: '{$OS_PROBE.RAW.HISTORY}'
+      trends: '0'
+      value_type: TEXT
+      description: |-
+        Every {$OS_SLOW.INTERVAL} by os-probe-project-slow.timer. Glance canary,
+        credential expiry (TLS only with project_tls = 1).
+        Pushed by: os_probe.py --tier slow --send (ini: scope = project)
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: layer
+        value: L3
+      - tag: component
+        value: os-probe-slow
+    - uuid: d7741000438e4952bd9df7391984a7bf
+      name: 'Probe fast: script completed'
+      type: DEPENDENT
+      key: os.fast.collect_ok
+      delay: '0'
+      history: 31d
+      valuemap:
+        name: Collection status
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.collect_ok
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-fast
+    - uuid: 4e3cbf5f8d8842108059731fc8aa922f
+      name: 'Probe fast: global error'
+      type: DEPENDENT
+      key: os.fast.global_error
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: Empty when healthy.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.global_error
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-fast
+    - uuid: 61d2de64c680490498aac94b695eb7c3
+      name: 'Probe fast: total runtime'
+      type: DEPENDENT
+      key: os.fast.total_ms
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: ms
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.total_ms
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-fast
+    - uuid: fa22a564dd35425db4a84b3606bc7128
+      name: 'Probe fast: requests'
+      type: DEPENDENT
+      key: os.fast.requests
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.requests
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-fast
+    - uuid: 329781bbd9004e1680ae9aa71cb3c670
+      name: 'Probe fast: bytes received'
+      type: DEPENDENT
+      key: os.fast.bytes
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: B
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.bytes
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-fast
+    - uuid: 6a57087ffb6f4a12ae217ee7b511335c
+      name: 'Probe fast: checks down (0 or 5xx)'
+      type: DEPENDENT
+      key: os.fast.checks_down
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.checks_down
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-fast
+    - uuid: 4de832cf9e164c778ef13eff66726106
+      name: 'Probe fast: checks 4xx'
+      type: DEPENDENT
+      key: os.fast.checks_4xx
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.checks_4xx
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-fast
+    - uuid: 5c2175fa200b42329015dbf2f8901fc3
+      name: 'Probe fast: checks skipped by deadline'
+      type: DEPENDENT
+      key: os.fast.checks_deadline
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.checks_deadline
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-fast
+    - uuid: 7d165119276c401aa6b01920e8f428af
+      name: 'Probe mid: script completed'
+      type: DEPENDENT
+      key: os.mid.collect_ok
+      delay: '0'
+      history: 31d
+      valuemap:
+        name: Collection status
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.collect_ok
+      master_item:
+        key: os.probe.mid
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-mid
+    - uuid: 9ef1634a451e4548b204e3e475b2d500
+      name: 'Probe mid: global error'
+      type: DEPENDENT
+      key: os.mid.global_error
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: Empty when healthy.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.global_error
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: os.probe.mid
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-mid
+    - uuid: d104db40b35841ee8ab8ada45e768d2a
+      name: 'Probe mid: total runtime'
+      type: DEPENDENT
+      key: os.mid.total_ms
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: ms
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.total_ms
+      master_item:
+        key: os.probe.mid
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-mid
+    - uuid: 1a2e403d81ee49bab8a9f46d286d4266
+      name: 'Probe mid: requests'
+      type: DEPENDENT
+      key: os.mid.requests
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.requests
+      master_item:
+        key: os.probe.mid
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-mid
+    - uuid: 5d3403c35f6b42c48d3cd660775bb1c4
+      name: 'Probe mid: bytes received'
+      type: DEPENDENT
+      key: os.mid.bytes
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: B
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.bytes
+      master_item:
+        key: os.probe.mid
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-mid
+    - uuid: bb7359f8be2d47afa5f0c9bf52ca054d
+      name: 'Probe mid: checks down (0 or 5xx)'
+      type: DEPENDENT
+      key: os.mid.checks_down
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.checks_down
+      master_item:
+        key: os.probe.mid
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-mid
+    - uuid: d4b2623c2ba04ab39ca2373d37143f6f
+      name: 'Probe mid: checks 4xx'
+      type: DEPENDENT
+      key: os.mid.checks_4xx
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.checks_4xx
+      master_item:
+        key: os.probe.mid
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-mid
+    - uuid: a9c87814e6074d00852a8ed5ce3d5008
+      name: 'Probe mid: checks skipped by deadline'
+      type: DEPENDENT
+      key: os.mid.checks_deadline
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.checks_deadline
+      master_item:
+        key: os.probe.mid
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-mid
+    - uuid: 65ecc8325c13446da1a20c245dcd6094
+      name: 'Probe slow: script completed'
+      type: DEPENDENT
+      key: os.slow.collect_ok
+      delay: '0'
+      history: 31d
+      valuemap:
+        name: Collection status
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.collect_ok
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-slow
+    - uuid: 34ed32e144a44ff1ac45f7ca2ac63c7f
+      name: 'Probe slow: global error'
+      type: DEPENDENT
+      key: os.slow.global_error
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: Empty when healthy.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.global_error
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-slow
+    - uuid: 75c1c7972a254f7aacb3836c1e8acb65
+      name: 'Probe slow: total runtime'
+      type: DEPENDENT
+      key: os.slow.total_ms
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: ms
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.total_ms
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-slow
+    - uuid: 2922f4f727e84a4aae91401bacecb5d2
+      name: 'Probe slow: requests'
+      type: DEPENDENT
+      key: os.slow.requests
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.requests
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-slow
+    - uuid: 9516bd2327d84609bf5199478de4637b
+      name: 'Probe slow: bytes received'
+      type: DEPENDENT
+      key: os.slow.bytes
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: B
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.bytes
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-slow
+    - uuid: 002398e0934f4cd4a4fbdb1a87ee7699
+      name: 'Probe slow: checks down (0 or 5xx)'
+      type: DEPENDENT
+      key: os.slow.checks_down
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.checks_down
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-slow
+    - uuid: 1338c56c88b14975917373c38926472a
+      name: 'Probe slow: checks 4xx'
+      type: DEPENDENT
+      key: os.slow.checks_4xx
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.checks_4xx
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-slow
+    - uuid: 3e6dff5a1de5428da8795c6207beecfd
+      name: 'Probe slow: checks skipped by deadline'
+      type: DEPENDENT
+      key: os.slow.checks_deadline
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.checks_deadline
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-slow
+    - uuid: ca7213b0ae8e407aac5f41414f1dcf5c
+      name: 'Keystone: token request status'
+      type: DEPENDENT
+      key: os.fast.auth.status
+      delay: '0'
+      history: 31d
+      trends: '0'
+      value_type: FLOAT
+      description: 201 = token issued. 0 = no response.
+      valuemap:
+        name: HTTP status
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.auth.http_status
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: keystone
+      - tag: layer
+        value: L3
+      - tag: component
+        value: token
+    - uuid: f0f5b2f04a6848d5bce9ad64291a9176
+      name: 'Keystone: token request time'
+      type: DEPENDENT
+      key: os.fast.auth.ms
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: ms
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.auth.ms
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: keystone
+      - tag: layer
+        value: L3
+      - tag: component
+        value: token
+    - uuid: a379436979f543598ae27fce9dcf9e1c
+      name: 'Keystone: token request error'
+      type: DEPENDENT
+      key: os.fast.auth.error
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.auth.error
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: keystone
+      - tag: layer
+        value: L3
+      - tag: component
+        value: token
+    - uuid: 1d56dfa711684c08ac314e0ed46e24b7
+      name: 'Keystone: catalog services'
+      type: DEPENDENT
+      key: os.fast.catalog_services
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      description: Services in the catalog this project sees. -1 = no token.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.catalog_services
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: keystone
+      - tag: layer
+        value: L3
+      - tag: component
+        value: catalog
+    - uuid: be45addbaaa64c24ad7431340295c7dc
+      name: 'Keystone: project name'
+      type: DEPENDENT
+      key: os.fast.project.name
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      description: Project the application credential is scoped to.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.project.name
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: keystone
+      - tag: layer
+        value: L3
+      - tag: component
+        value: token
+    - uuid: 9e732051f811418e97c028e30af5f82d
+      name: 'Probe fast: probe host cut off'
+      type: DEPENDENT
+      key: os.fast.probe_net_down
+      delay: '0'
+      history: 31d
+      valuemap:
+        name: Probe network
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.probe_net_down
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: os-probe-fast
+    - uuid: f0a8eaceeaf84760a473e3cbb36c7e6f
+      name: 'Availability zones: total'
+      type: DEPENDENT
+      key: os.fast.azs.total
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.azs_total
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: nova
+      - tag: layer
+        value: L3
+      - tag: component
+        value: availability_zone
+    - uuid: 774f66f676984417b3e5e7dcf0fb8017
+      name: 'Availability zones: not available'
+      type: DEPENDENT
+      key: os.fast.azs.down
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      description: Nova + Cinder AZs that report available = false.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.azs_down
+      master_item:
+        key: os.probe.fast
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: nova
+      - tag: layer
+        value: L3
+      - tag: component
+        value: availability_zone
+    - uuid: 1d82c15d04474da287b618702aa1831b
+      name: 'Probe credential: days until expiry'
+      type: DEPENDENT
+      key: os.slow.cred.expire_days
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: d
+      description: -1 = never expires or not readable.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.cred_expires_days
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: monitoring
+      - tag: layer
+        value: L3
+      - tag: component
+        value: app_credential
+    - uuid: ebc07d09bb1549528fbac876c291a8d5
+      name: 'TLS endpoints: soonest certificate expiry'
+      type: DEPENDENT
+      key: os.slow.tls.cert_days
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: d
+      description: Only with project_tls = 1. -1 = not collected.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.tls_cert_min_days
+      master_item:
+        key: os.probe.slow
+      tags:
+      - tag: scope
+        value: project
+      - tag: service
+        value: keystone
+      - tag: layer
+        value: L2
+      - tag: component
+        value: tls_cert
+    discovery_rules:
+    - uuid: 47ab17ea30334c93a6521dcae0ef99a8
+      name: API checks
+      type: DEPENDENT
+      key: os.fast.discovery.checks
+      delay: '0'
+      lifetime: '{$OS_LLD.LIFETIME}'
+      description: 'One row per check: L3 functional probes of this project (catalog, servers, volumes, networks, images, stacks, load balancers ...). L2 roots appear only with project_l2 = 1.'
+      item_prototypes:
+      - uuid: d53db47cc0f74d36be773f2a3fc2670e
+        name: '{#LABEL} {#CHECK} @ {#TARGET}: HTTP status'
+        type: DEPENDENT
+        key: os.api.status["{#ID}"]
+        delay: '0'
+        history: 31d
+        trends: '0'
+        value_type: FLOAT
+        description: Real HTTP code. 0 = no response, -1 = skipped (deadline, skip_types, no token).
+        valuemap:
+          name: HTTP status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.checks[?(@.id=='{#ID}')].http_status.first()
+        master_item:
+          key: os.probe.fast
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: component
+          value: '{#CHECK}'
+        - tag: node
+          value: '{#NODE}'
+      - uuid: 45bfed56f2b2438490b4846014548f5c
+        name: '{#LABEL} {#CHECK} @ {#TARGET}: response time'
+        type: DEPENDENT
+        key: os.api.ms["{#ID}"]
+        delay: '0'
+        history: 31d
+        value_type: FLOAT
+        units: ms
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.checks[?(@.id=='{#ID}')].ms.first()
+        master_item:
+          key: os.probe.fast
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: component
+          value: '{#CHECK}'
+        - tag: node
+          value: '{#NODE}'
+      - uuid: 02b2a472c9f54b68a2d685a7b1edfc1a
+        name: '{#LABEL} {#CHECK} @ {#TARGET}: error'
+        type: DEPENDENT
+        key: os.api.error["{#ID}"]
+        delay: '0'
+        history: 7d
+        trends: '0'
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.checks[?(@.id=='{#ID}')].error.first()
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1h
+        master_item:
+          key: os.probe.fast
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: component
+          value: '{#CHECK}'
+        - tag: node
+          value: '{#NODE}'
+      trigger_prototypes:
+      - uuid: 63b9372154444edcb6f78c2991fea777
+        expression: count(/OS-API-Probe-Project/os.api.status["{#ID}"],#3,"eq","0")+count(/OS-API-Probe-Project/os.api.status["{#ID}"],#3,"ge","500")>=3
+        name: 'OpenStack project {#LABEL}: {#CHECK} @ {#TARGET} is down (HTTP {ITEM.VALUE})'
+        priority: HIGH
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: count(/OS-API-Probe-Project/os.api.status["{#ID}"],#2,"eq","0")+count(/OS-API-Probe-Project/os.api.status["{#ID}"],#2,"ge","500")=0
+        opdata: HTTP {ITEM.LASTVALUE}
+        description: 3 rounds in a row (~5-6m) with no response (0) or 5xx when this project calls the API.
+        dependencies:
+        - name: 'OpenStack project probe fast: script failing'
+          expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+        - name: OpenStack project probe host cannot reach any endpoint
+          expression: last(/OS-API-Probe-Project/os.fast.probe_net_down)=1
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: impact
+          value: availability
+        - tag: component
+          value: '{#CHECK}'
+        - tag: node
+          value: '{#NODE}'
+        - tag: target
+          value: '{#TARGET}'
+        - tag: http_status
+          value: '{ITEM.VALUE}'
+      - uuid: 496f5dcf6426407993110a16bbf3324d
+        expression: count(/OS-API-Probe-Project/os.api.status["{#ID}"],#2,"ge","400")-count(/OS-API-Probe-Project/os.api.status["{#ID}"],#2,"ge","500")>=2 and last(/OS-API-Probe-Project/os.api.status["{#ID}"])<>{$OS_API.ACCEPT:"{#SERVICE}"}
+        name: 'OpenStack project {#LABEL}: {#CHECK} @ {#TARGET} rejects the probe (HTTP {ITEM.VALUE})'
+        priority: AVERAGE
+        opdata: HTTP {ITEM.LASTVALUE}
+        description: '401/403: the probe user lacks a role in this project, or the service policy does not let a member / reader list. 404: path not supported. Accept a code with {$OS_API.ACCEPT:"<service>"} = <code>, or skip it with skip_checks in the ini.'
+        dependencies:
+        - name: 'OpenStack project probe fast: script failing'
+          expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: impact
+          value: monitoring
+        - tag: component
+          value: '{#CHECK}'
+        - tag: node
+          value: '{#NODE}'
+        - tag: target
+          value: '{#TARGET}'
+        - tag: http_status
+          value: '{ITEM.VALUE}'
+      - uuid: 6f6fe433fa544779848b67eba71cd149
+        expression: min(/OS-API-Probe-Project/os.api.ms["{#ID}"],#3)>{$OS_LATENCY.WARN:"{#SERVICE}"}
+        name: 'OpenStack project {#LABEL}: {#CHECK} @ {#TARGET} is slow'
+        priority: WARNING
+        opdata: '{ITEM.LASTVALUE}'
+        dependencies:
+        - name: 'OpenStack project {#LABEL}: {#CHECK} @ {#TARGET} is down (HTTP {ITEM.VALUE})'
+          expression: count(/OS-API-Probe-Project/os.api.status["{#ID}"],#3,"eq","0")+count(/OS-API-Probe-Project/os.api.status["{#ID}"],#3,"ge","500")>=3
+          recovery_expression: count(/OS-API-Probe-Project/os.api.status["{#ID}"],#2,"eq","0")+count(/OS-API-Probe-Project/os.api.status["{#ID}"],#2,"ge","500")=0
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: impact
+          value: stability
+        - tag: component
+          value: '{#CHECK}'
+        - tag: node
+          value: '{#NODE}'
+        - tag: target
+          value: '{#TARGET}'
+      master_item:
+        key: os.probe.fast
+      lld_macro_paths:
+      - lld_macro: '{#ID}'
+        path: $.id
+      - lld_macro: '{#SERVICE}'
+        path: $.service
+      - lld_macro: '{#LABEL}'
+        path: $.label
+      - lld_macro: '{#CHECK}'
+        path: $.check
+      - lld_macro: '{#LAYER}'
+        path: $.layer
+      - lld_macro: '{#TARGET}'
+        path: $.target
+      - lld_macro: '{#NODE}'
+        path: $.node
+      - lld_macro: '{#IMPACT}'
+        path: $.impact
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.checks
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var a = JSON.parse(value), out = [];
+          for (var i = 0; i < a.length; i++) {
+            out.push({id: a[i].id, service: a[i].service, label: a[i].label, check: a[i].check, layer: a[i].layer, target: a[i].target, node: a[i].node, impact: a[i].impact});
+          }
+          return JSON.stringify(out);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+    - uuid: 468955d06508405d8011a584eac11d9e
+      name: Availability zones
+      type: DEPENDENT
+      key: os.fast.discovery.az
+      delay: '0'
+      lifetime: '{$OS_LLD.LIFETIME}'
+      description: One row per Nova and Cinder availability zone the project sees.
+      item_prototypes:
+      - uuid: ceeb7ad227644a008863ee9d5c3c7c53
+        name: '{#LABEL} AZ {#ZONE}: available'
+        type: DEPENDENT
+        key: os.az.available["{#ID}"]
+        delay: '0'
+        history: 31d
+        trends: '0'
+        description: 'zoneState.available. 0 = every nova-compute (Nova) or cinder-volume (Cinder) of the AZ is down or disabled: nothing new can be placed there.'
+        valuemap:
+          name: Yes/No
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.azs[?(@.id=='{#ID}')].available.first()
+        master_item:
+          key: os.probe.fast
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: L3
+        - tag: component
+          value: availability_zone
+        - tag: zone
+          value: '{#ZONE}'
+      trigger_prototypes:
+      - uuid: f67c96f619584f6fa65aa26dd3b97ee4
+        expression: count(/OS-API-Probe-Project/os.az.available["{#ID}"],#2,"eq","0")>=2
+        name: 'OpenStack project {#LABEL}: availability zone {#ZONE} is not available'
+        priority: HIGH
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: last(/OS-API-Probe-Project/os.az.available["{#ID}"])=1
+        description: This project cannot create {#LABEL} resources in {#ZONE} (2 rounds in a row). The cloud-scope host shows which service records / hypervisors are down.
+        dependencies:
+        - name: 'OpenStack project probe fast: script failing'
+          expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+        - name: OpenStack project probe host cannot reach any endpoint
+          expression: last(/OS-API-Probe-Project/os.fast.probe_net_down)=1
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: L3
+        - tag: impact
+          value: availability
+        - tag: component
+          value: availability_zone
+        - tag: zone
+          value: '{#ZONE}'
+        - tag: target
+          value: vip
+      master_item:
+        key: os.probe.fast
+      lld_macro_paths:
+      - lld_macro: '{#ID}'
+        path: $.id
+      - lld_macro: '{#SERVICE}'
+        path: $.service
+      - lld_macro: '{#LABEL}'
+        path: $.label
+      - lld_macro: '{#ZONE}'
+        path: $.zone
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.azs
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var a = JSON.parse(value), out = [];
+          for (var i = 0; i < a.length; i++) {
+            out.push({id: a[i].id, service: a[i].service, label: a[i].label, zone: a[i].zone});
+          }
+          return JSON.stringify(out);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+    - uuid: 401dbb0dc02c4da4abc3294ab06ceddc
+      name: Mid calls
+      type: DEPENDENT
+      key: os.mid.discovery.checks
+      delay: '0'
+      lifetime: '{$OS_LLD.LIFETIME}'
+      item_prototypes:
+      - uuid: 0cc5f3df91624429a7c5cd3569774e3a
+        name: '{#LABEL} mid {#CHECK}: HTTP status'
+        type: DEPENDENT
+        key: os.mid.call.status["{#ID}"]
+        delay: '0'
+        history: 31d
+        trends: '0'
+        value_type: FLOAT
+        valuemap:
+          name: HTTP status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.checks[?(@.id=='{#ID}')].http_status.first()
+        master_item:
+          key: os.probe.mid
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: component
+          value: '{#CHECK}'
+      - uuid: 89fab47a79704daba257abdfbcde1e7e
+        name: '{#LABEL} mid {#CHECK}: response time'
+        type: DEPENDENT
+        key: os.mid.call.ms["{#ID}"]
+        delay: '0'
+        history: 31d
+        value_type: FLOAT
+        units: ms
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.checks[?(@.id=='{#ID}')].ms.first()
+        master_item:
+          key: os.probe.mid
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: component
+          value: '{#CHECK}'
+      - uuid: 368259bb341348f0869b4ac6b2e4d128
+        name: '{#LABEL} mid {#CHECK}: error'
+        type: DEPENDENT
+        key: os.mid.call.error["{#ID}"]
+        delay: '0'
+        history: 7d
+        trends: '0'
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.checks[?(@.id=='{#ID}')].error.first()
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1h
+        master_item:
+          key: os.probe.mid
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: component
+          value: '{#CHECK}'
+      trigger_prototypes:
+      - uuid: e6755d7e24f745489187fbaac9e6f3c0
+        expression: count(/OS-API-Probe-Project/os.mid.call.status["{#ID}"],#2,"eq","0")+count(/OS-API-Probe-Project/os.mid.call.status["{#ID}"],#2,"ge","500")>=2
+        name: 'OpenStack project {#LABEL}: mid call {#CHECK} failing (HTTP {ITEM.VALUE})'
+        priority: WARNING
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: count(/OS-API-Probe-Project/os.mid.call.status["{#ID}"],#2,"eq","0")+count(/OS-API-Probe-Project/os.mid.call.status["{#ID}"],#2,"ge","500")=0
+        opdata: HTTP {ITEM.LASTVALUE}
+        description: 'No response or 5xx on a mid-tier call. impact comes from the script: monitoring for collector calls, availability for the Glance canary (High by override).'
+        dependencies:
+        - name: 'OpenStack project probe mid: script failing'
+          expression: last(/OS-API-Probe-Project/os.mid.collect_ok)=0
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: impact
+          value: '{#IMPACT}'
+        - tag: component
+          value: '{#CHECK}'
+        - tag: http_status
+          value: '{ITEM.VALUE}'
+      - uuid: ec523e890b2b473dafcd1aeb146ed3d1
+        expression: count(/OS-API-Probe-Project/os.mid.call.status["{#ID}"],#2,"ge","400")-count(/OS-API-Probe-Project/os.mid.call.status["{#ID}"],#2,"ge","500")>=2
+        name: 'OpenStack project {#LABEL}: mid call {#CHECK} rejected (HTTP {ITEM.VALUE})'
+        priority: AVERAGE
+        opdata: HTTP {ITEM.LASTVALUE}
+        description: '401/403: policy does not let a project member / reader make this call. Skip it with skip_checks = <service>:<check> in the ini.'
+        dependencies:
+        - name: 'OpenStack project probe mid: script failing'
+          expression: last(/OS-API-Probe-Project/os.mid.collect_ok)=0
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: impact
+          value: monitoring
+        - tag: component
+          value: '{#CHECK}'
+        - tag: http_status
+          value: '{ITEM.VALUE}'
+      master_item:
+        key: os.probe.mid
+      lld_macro_paths:
+      - lld_macro: '{#ID}'
+        path: $.id
+      - lld_macro: '{#SERVICE}'
+        path: $.service
+      - lld_macro: '{#LABEL}'
+        path: $.label
+      - lld_macro: '{#CHECK}'
+        path: $.check
+      - lld_macro: '{#LAYER}'
+        path: $.layer
+      - lld_macro: '{#TARGET}'
+        path: $.target
+      - lld_macro: '{#NODE}'
+        path: $.node
+      - lld_macro: '{#IMPACT}'
+        path: $.impact
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.checks
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var a = JSON.parse(value), out = [];
+          for (var i = 0; i < a.length; i++) {
+            out.push({id: a[i].id, service: a[i].service, label: a[i].label, check: a[i].check, layer: a[i].layer, target: a[i].target, node: a[i].node, impact: a[i].impact});
+          }
+          return JSON.stringify(out);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      overrides:
+      - name: availability calls are High
+        step: '1'
+        filter:
+          evaltype: AND
+          conditions:
+          - macro: '{#IMPACT}'
+            value: ^availability$
+            formulaid: A
+        operations:
+        - operationobject: TRIGGER_PROTOTYPE
+          operator: LIKE
+          value: failing
+          severity: HIGH
+    - uuid: db543c2db1c34f56b13e0b2936315113
+      name: Slow calls
+      type: DEPENDENT
+      key: os.slow.discovery.checks
+      delay: '0'
+      lifetime: '{$OS_LLD.LIFETIME}'
+      item_prototypes:
+      - uuid: 0d6cd490cc2d48588b87d191877d0194
+        name: '{#LABEL} slow {#CHECK}: HTTP status'
+        type: DEPENDENT
+        key: os.slow.call.status["{#ID}"]
+        delay: '0'
+        history: 31d
+        trends: '0'
+        value_type: FLOAT
+        valuemap:
+          name: HTTP status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.checks[?(@.id=='{#ID}')].http_status.first()
+        master_item:
+          key: os.probe.slow
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: component
+          value: '{#CHECK}'
+      - uuid: 64ed0faf774e456a99eb48bc8d50c66e
+        name: '{#LABEL} slow {#CHECK}: response time'
+        type: DEPENDENT
+        key: os.slow.call.ms["{#ID}"]
+        delay: '0'
+        history: 31d
+        value_type: FLOAT
+        units: ms
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.checks[?(@.id=='{#ID}')].ms.first()
+        master_item:
+          key: os.probe.slow
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: component
+          value: '{#CHECK}'
+      - uuid: 6bcd7964eaa4484084ba137442412dc8
+        name: '{#LABEL} slow {#CHECK}: error'
+        type: DEPENDENT
+        key: os.slow.call.error["{#ID}"]
+        delay: '0'
+        history: 7d
+        trends: '0'
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.checks[?(@.id=='{#ID}')].error.first()
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1h
+        master_item:
+          key: os.probe.slow
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: component
+          value: '{#CHECK}'
+      trigger_prototypes:
+      - uuid: d01c5e459e8e41fb8a8d20049446eb5b
+        expression: count(/OS-API-Probe-Project/os.slow.call.status["{#ID}"],#2,"eq","0")+count(/OS-API-Probe-Project/os.slow.call.status["{#ID}"],#2,"ge","500")>=2
+        name: 'OpenStack project {#LABEL}: slow call {#CHECK} failing (HTTP {ITEM.VALUE})'
+        priority: WARNING
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: count(/OS-API-Probe-Project/os.slow.call.status["{#ID}"],#2,"eq","0")+count(/OS-API-Probe-Project/os.slow.call.status["{#ID}"],#2,"ge","500")=0
+        opdata: HTTP {ITEM.LASTVALUE}
+        description: 'No response or 5xx on a slow-tier call. impact comes from the script: monitoring for collector calls, availability for the Glance canary (High by override).'
+        dependencies:
+        - name: 'OpenStack project probe slow: script failing'
+          expression: last(/OS-API-Probe-Project/os.slow.collect_ok)=0
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: impact
+          value: '{#IMPACT}'
+        - tag: component
+          value: '{#CHECK}'
+        - tag: http_status
+          value: '{ITEM.VALUE}'
+      - uuid: ea5f4a1b75974423a26095c8eb3670dc
+        expression: count(/OS-API-Probe-Project/os.slow.call.status["{#ID}"],#2,"ge","400")-count(/OS-API-Probe-Project/os.slow.call.status["{#ID}"],#2,"ge","500")>=2
+        name: 'OpenStack project {#LABEL}: slow call {#CHECK} rejected (HTTP {ITEM.VALUE})'
+        priority: AVERAGE
+        opdata: HTTP {ITEM.LASTVALUE}
+        description: '401/403: policy does not let a project member / reader make this call. Skip it with skip_checks = <service>:<check> in the ini.'
+        dependencies:
+        - name: 'OpenStack project probe slow: script failing'
+          expression: last(/OS-API-Probe-Project/os.slow.collect_ok)=0
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: '{#LAYER}'
+        - tag: impact
+          value: monitoring
+        - tag: component
+          value: '{#CHECK}'
+        - tag: http_status
+          value: '{ITEM.VALUE}'
+      master_item:
+        key: os.probe.slow
+      lld_macro_paths:
+      - lld_macro: '{#ID}'
+        path: $.id
+      - lld_macro: '{#SERVICE}'
+        path: $.service
+      - lld_macro: '{#LABEL}'
+        path: $.label
+      - lld_macro: '{#CHECK}'
+        path: $.check
+      - lld_macro: '{#LAYER}'
+        path: $.layer
+      - lld_macro: '{#TARGET}'
+        path: $.target
+      - lld_macro: '{#NODE}'
+        path: $.node
+      - lld_macro: '{#IMPACT}'
+        path: $.impact
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.checks
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var a = JSON.parse(value), out = [];
+          for (var i = 0; i < a.length; i++) {
+            out.push({id: a[i].id, service: a[i].service, label: a[i].label, check: a[i].check, layer: a[i].layer, target: a[i].target, node: a[i].node, impact: a[i].impact});
+          }
+          return JSON.stringify(out);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      overrides:
+      - name: availability calls are High
+        step: '1'
+        filter:
+          evaltype: AND
+          conditions:
+          - macro: '{#IMPACT}'
+            value: ^availability$
+            formulaid: A
+        operations:
+        - operationobject: TRIGGER_PROTOTYPE
+          operator: LIKE
+          value: failing
+          severity: HIGH
+    - uuid: 4b811ce1ae88472c84121cab24d7d114
+      name: TLS certificates
+      type: DEPENDENT
+      key: os.slow.discovery.tls
+      delay: '0'
+      lifetime: '{$OS_LLD.LIFETIME}'
+      description: Empty unless project_tls = 1 (the cloud-scope host already checks the certificates).
+      item_prototypes:
+      - uuid: a9b4cc315197404d8210cfca34b917b4
+        name: 'TLS cert {#ID} ({#LABEL}): days until expiry'
+        type: DEPENDENT
+        key: os.tls.days["{#ID}"]
+        delay: '0'
+        history: 31d
+        value_type: FLOAT
+        units: d
+        description: -1 = not readable.
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.tls_certs[?(@.id=='{#ID}')].days.first()
+        master_item:
+          key: os.probe.slow
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: L2
+        - tag: component
+          value: tls_cert
+        - tag: endpoint
+          value: '{#ID}'
+      - uuid: bda3d7909e4849cc8a20ebab7cd4c2f5
+        name: 'TLS cert {#ID} ({#LABEL}): error'
+        type: DEPENDENT
+        key: os.tls.error["{#ID}"]
+        delay: '0'
+        history: 7d
+        trends: '0'
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.tls_certs[?(@.id=='{#ID}')].error.first()
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 1h
+        master_item:
+          key: os.probe.slow
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: L2
+        - tag: component
+          value: tls_cert
+        - tag: endpoint
+          value: '{#ID}'
+      trigger_prototypes:
+      - uuid: d1efe8d5fa0d40da9d765dbf6538b0b8
+        expression: last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<>-1 and last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<{$OS_TLS.HIGH:"{#ID}"}
+        name: OpenStack project TLS certificate {#ID} ({#LABEL}) expires in {ITEM.VALUE} days
+        priority: HIGH
+        opdata: '{ITEM.LASTVALUE}'
+        dependencies:
+        - name: 'OpenStack project probe slow: script failing'
+          expression: last(/OS-API-Probe-Project/os.slow.collect_ok)=0
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: L2
+        - tag: impact
+          value: stability
+        - tag: component
+          value: tls_cert
+        - tag: endpoint
+          value: '{#ID}'
+      - uuid: 6b197dd468c94cec96c664235877ed3f
+        expression: last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<>-1 and last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<{$OS_TLS.AVERAGE:"{#ID}"}
+        name: OpenStack project TLS certificate {#ID} ({#LABEL}) expires in {ITEM.VALUE} days (average)
+        priority: AVERAGE
+        opdata: '{ITEM.LASTVALUE}'
+        dependencies:
+        - name: OpenStack project TLS certificate {#ID} ({#LABEL}) expires in {ITEM.VALUE} days
+          expression: last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<>-1 and last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<{$OS_TLS.HIGH:"{#ID}"}
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: L2
+        - tag: impact
+          value: stability
+        - tag: component
+          value: tls_cert
+        - tag: endpoint
+          value: '{#ID}'
+      - uuid: 87ca1dd75275487b95f304bd15878b8f
+        expression: last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<>-1 and last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<{$OS_TLS.WARN:"{#ID}"}
+        name: OpenStack project TLS certificate {#ID} ({#LABEL}) expires in {ITEM.VALUE} days (warning)
+        priority: WARNING
+        opdata: '{ITEM.LASTVALUE}'
+        dependencies:
+        - name: OpenStack project TLS certificate {#ID} ({#LABEL}) expires in {ITEM.VALUE} days (average)
+          expression: last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<>-1 and last(/OS-API-Probe-Project/os.tls.days["{#ID}"])<{$OS_TLS.AVERAGE:"{#ID}"}
+        tags:
+        - tag: scope
+          value: project
+        - tag: service
+          value: '{#SERVICE}'
+        - tag: layer
+          value: L2
+        - tag: impact
+          value: stability
+        - tag: component
+          value: tls_cert
+        - tag: endpoint
+          value: '{#ID}'
+      master_item:
+        key: os.probe.slow
+      lld_macro_paths:
+      - lld_macro: '{#ID}'
+        path: $.id
+      - lld_macro: '{#SERVICE}'
+        path: $.service
+      - lld_macro: '{#LABEL}'
+        path: $.label
+      - lld_macro: '{#HOST}'
+        path: $.host
+      - lld_macro: '{#PORT}'
+        path: $.port
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.tls_certs
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          var a = JSON.parse(value), out = [];
+          for (var i = 0; i < a.length; i++) {
+            out.push({id: a[i].id, service: a[i].service, label: a[i].label, host: a[i].host, port: a[i].port});
+          }
+          return JSON.stringify(out);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+    tags:
+    - tag: scope
+      value: project
+    macros:
+    - macro: '{$OS_API.ACCEPT}'
+      value: '0'
+      description: Extra 4xx code that is normal for one service. Context = service tag.
+    - macro: '{$OS_AUTH.WARN}'
+      value: '5000'
+      description: Token issue time warning, ms (3 rounds).
+    - macro: '{$OS_CRED.EXPIRE.WARN}'
+      value: '14'
+      description: Probe application credential expiry warning, days.
+    - macro: '{$OS_FAST.INTERVAL}'
+      value: 2m
+      description: 'Documentation only: must match os-probe-project-fast.timer.'
+    - macro: '{$OS_FAST.NODATA}'
+      value: 10m
+      description: nodata() window for the fast master.
+    - macro: '{$OS_FAST.RUNTIME.WARN}'
+      value: '30000'
+      description: Warn when the fast run takes longer, ms.
+    - macro: '{$OS_LATENCY.WARN}'
+      value: '5000'
+      description: API response time warning, ms (3 rounds). Context = service tag.
+    - macro: '{$OS_LLD.LIFETIME}'
+      value: 7d
+      description: How long an undiscovered row survives.
+    - macro: '{$OS_MID.INTERVAL}'
+      value: 5m
+      description: 'Documentation only: must match os-probe-project-mid.timer.'
+    - macro: '{$OS_MID.NODATA}'
+      value: 20m
+      description: nodata() window for the mid master.
+    - macro: '{$OS_MID.RUNTIME.WARN}'
+      value: '90000'
+      description: Warn when the mid run takes longer, ms.
+    - macro: '{$OS_PROBE.RAW.HISTORY}'
+      value: 1h
+      description: History of the 3 raw JSON masters.
+    - macro: '{$OS_SLOW.INTERVAL}'
+      value: 30m
+      description: 'Documentation only: must match os-probe-project-slow.timer.'
+    - macro: '{$OS_SLOW.NODATA}'
+      value: 75m
+      description: nodata() window for the slow master.
+    - macro: '{$OS_SLOW.RUNTIME.WARN}'
+      value: '240000'
+      description: Warn when the slow run takes longer, ms.
+    - macro: '{$OS_TLS.AVERAGE}'
+      value: '7'
+      description: TLS certificate expiry, days - Average (project_tls = 1 only).
+    - macro: '{$OS_TLS.HIGH}'
+      value: '3'
+      description: TLS certificate expiry, days - High (project_tls = 1 only).
+    - macro: '{$OS_TLS.WARN}'
+      value: '30'
+      description: TLS certificate expiry, days - Warning (project_tls = 1 only).
+    valuemaps:
+    - uuid: 17fbcf7bf23145ec856ad3dab2c5ce6a
+      name: HTTP status
+      mappings:
+      - value: '-1'
+        newvalue: Skipped
+      - value: '0'
+        newvalue: No response
+      - value: '200'
+        newvalue: OK
+      - value: '201'
+        newvalue: Created
+      - value: '202'
+        newvalue: Accepted
+      - value: '204'
+        newvalue: No Content
+      - value: '206'
+        newvalue: Partial Content
+      - value: '300'
+        newvalue: Multiple Choices
+      - value: '301'
+        newvalue: Moved Permanently
+      - value: '302'
+        newvalue: Found
+      - value: '400'
+        newvalue: Bad Request
+      - value: '401'
+        newvalue: Unauthorized
+      - value: '403'
+        newvalue: Forbidden
+      - value: '404'
+        newvalue: Not Found
+      - value: '405'
+        newvalue: Method Not Allowed
+      - value: '406'
+        newvalue: Not Acceptable
+      - value: '409'
+        newvalue: Conflict
+      - value: '413'
+        newvalue: Payload Too Large
+      - value: '415'
+        newvalue: Unsupported Media Type
+      - value: '429'
+        newvalue: Too Many Requests
+      - value: '500'
+        newvalue: Internal Server Error
+      - value: '501'
+        newvalue: Not Implemented
+      - value: '502'
+        newvalue: Bad Gateway
+      - value: '503'
+        newvalue: Service Unavailable
+      - value: '504'
+        newvalue: Gateway Timeout
+    - uuid: a89f3b4364474e5c92cf28ce19e1ae2b
+      name: Collection status
+      mappings:
+      - value: '0'
+        newvalue: Failed
+      - value: '1'
+        newvalue: OK
+    - uuid: bb53f4b29e6a4cdcbde3c03294dbb445
+      name: Probe network
+      mappings:
+      - value: '0'
+        newvalue: OK
+      - value: '1'
+        newvalue: Cut off
+    - uuid: cce9abca92674243a2d6582813867762
+      name: Yes/No
+      mappings:
+      - value: '0'
+        newvalue: 'No'
+      - value: '1'
+        newvalue: 'Yes'
+  triggers:
+  - uuid: d86d0b597d324558b8d6afd050411b91
+    expression: count(/OS-API-Probe-Project/os.fast.auth.status,#4,"eq","0")+count(/OS-API-Probe-Project/os.fast.auth.status,#4,"ge","500")>=3
+    name: 'OpenStack project Keystone: cannot issue tokens (HTTP {ITEM.VALUE})'
+    priority: HIGH
+    recovery_mode: RECOVERY_EXPRESSION
+    recovery_expression: last(/OS-API-Probe-Project/os.fast.auth.status)>=200 and last(/OS-API-Probe-Project/os.fast.auth.status)<300
+    opdata: HTTP {ITEM.LASTVALUE}
+    description: 3 of the last 4 token requests of this project got no response or 5xx. The cloud-scope host raises the Disaster for Keystone itself.
+    dependencies:
+    - name: 'OpenStack project probe fast: script failing'
+      expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+    - name: OpenStack project probe host cannot reach any endpoint
+      expression: last(/OS-API-Probe-Project/os.fast.probe_net_down)=1
+    tags:
+    - tag: scope
+      value: project
+    - tag: service
+      value: keystone
+    - tag: layer
+      value: L3
+    - tag: impact
+      value: availability
+    - tag: component
+      value: token
+    - tag: http_status
+      value: '{ITEM.VALUE}'
+  - uuid: 0111d23b97bf42c091cbef697337de43
+    expression: last(/OS-API-Probe-Project/os.fast.catalog_services)>=0 and last(/OS-API-Probe-Project/os.fast.catalog_services)<max(/OS-API-Probe-Project/os.fast.catalog_services,1h)
+    name: 'OpenStack project Keystone: catalog lost a service'
+    priority: HIGH
+    manual_close: 'YES'
+    description: Fewer services in this project's catalog than during the last hour (endpoint filter / project endpoint group changed?).
+    dependencies:
+    - name: 'OpenStack project probe fast: script failing'
+      expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: service
+      value: keystone
+    - tag: layer
+      value: L3
+    - tag: impact
+      value: availability
+    - tag: component
+      value: catalog
+  - uuid: f8717ba154664e82acd01a6998e68917
+    expression: min(/OS-API-Probe-Project/os.fast.auth.ms,#3)>{$OS_AUTH.WARN}
+    name: 'OpenStack project Keystone: token issue is slow'
+    priority: WARNING
+    dependencies:
+    - name: 'OpenStack project Keystone: cannot issue tokens (HTTP {ITEM.VALUE})'
+      expression: count(/OS-API-Probe-Project/os.fast.auth.status,#4,"eq","0")+count(/OS-API-Probe-Project/os.fast.auth.status,#4,"ge","500")>=3
+      recovery_expression: last(/OS-API-Probe-Project/os.fast.auth.status)>=200 and last(/OS-API-Probe-Project/os.fast.auth.status)<300
+    tags:
+    - tag: scope
+      value: project
+    - tag: service
+      value: keystone
+    - tag: layer
+      value: L3
+    - tag: impact
+      value: stability
+    - tag: component
+      value: token
+  - uuid: 652ee88ededd49b6a845cd2fc4d27f9f
+    expression: last(/OS-API-Probe-Project/os.slow.cred.expire_days)>=0 and last(/OS-API-Probe-Project/os.slow.cred.expire_days)<{$OS_CRED.EXPIRE.WARN}
+    name: OpenStack project credential expires in {ITEM.VALUE} days
+    priority: WARNING
+    description: Create a new application credential in this project and update the ini on the proxy host.
+    dependencies:
+    - name: 'OpenStack project probe slow: script failing'
+      expression: last(/OS-API-Probe-Project/os.slow.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: service
+      value: monitoring
+    - tag: layer
+      value: L3
+    - tag: impact
+      value: monitoring
+    - tag: component
+      value: app_credential
+  - uuid: 44e58256ee864762abedafad2023066d
+    expression: count(/OS-API-Probe-Project/os.fast.auth.status,#2,"ge","400")-count(/OS-API-Probe-Project/os.fast.auth.status,#2,"ge","500")>=2
+    name: OpenStack project credential rejected by Keystone (HTTP {ITEM.VALUE})
+    priority: HIGH
+    opdata: HTTP {ITEM.LASTVALUE}
+    description: '401: application credential expired, deleted or wrong secret. 403: the user lost its role in the project.'
+    dependencies:
+    - name: 'OpenStack project probe fast: script failing'
+      expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: service
+      value: monitoring
+    - tag: layer
+      value: L3
+    - tag: impact
+      value: monitoring
+    - tag: component
+      value: token
+    - tag: http_status
+      value: '{ITEM.VALUE}'
+  - uuid: f9c86bb6acc449d6828886332c61548e
+    expression: min(/OS-API-Probe-Project/os.fast.checks_deadline,#3)>0
+    name: 'OpenStack project probe fast: hitting its deadline'
+    priority: WARNING
+    description: Checks were skipped (http_status -1) because the run reached fast_deadline_ms.
+    dependencies:
+    - name: 'OpenStack project probe fast: script failing'
+      expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-fast
+  - uuid: 1050eca5e56f4bceb59b401a554aa867
+    expression: nodata(/OS-API-Probe-Project/os.fast.total_ms,{$OS_FAST.NODATA})=1
+    name: 'OpenStack project probe fast: no data'
+    priority: HIGH
+    description: No value from the fast timer. Check the systemd timer on the proxy host, journalctl -u os-probe-project@fast, and that zabbix_host in the ini matches this host name.
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-fast
+  - uuid: be229d83017d4e049b0cc94af86b3cfa
+    expression: min(/OS-API-Probe-Project/os.fast.total_ms,#3)>{$OS_FAST.RUNTIME.WARN}
+    name: 'OpenStack project probe fast: running slow'
+    priority: WARNING
+    description: Close to fast_deadline_ms.
+    dependencies:
+    - name: 'OpenStack project probe fast: script failing'
+      expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-fast
+  - uuid: db4a1bdefa1a47c485461ac6b57b4fa4
+    expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+    name: 'OpenStack project probe fast: script failing'
+    priority: HIGH
+    description: 'Config error or crash - see item "Probe fast: global error". This is the probe, not the cloud, so it never counts as downtime.'
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-fast
+  - uuid: be1849cf1b454d04bdbeec8ef7929ee3
+    expression: last(/OS-API-Probe-Project/os.fast.probe_net_down)=1
+    name: OpenStack project probe host cannot reach any endpoint
+    priority: HIGH
+    description: 'ref_url is unreachable (set ref_url in the ini: with project_l2 = 0 it is the only way to tell a cut-off probe host from a cloud outage).'
+    dependencies:
+    - name: 'OpenStack project probe fast: script failing'
+      expression: last(/OS-API-Probe-Project/os.fast.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-fast
+  - uuid: d6db05ec754b4d739766d76b034ae889
+    expression: min(/OS-API-Probe-Project/os.mid.checks_deadline,#3)>0
+    name: 'OpenStack project probe mid: hitting its deadline'
+    priority: WARNING
+    description: Checks were skipped (http_status -1) because the run reached mid_deadline_ms.
+    dependencies:
+    - name: 'OpenStack project probe mid: script failing'
+      expression: last(/OS-API-Probe-Project/os.mid.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-mid
+  - uuid: 92e7f2ab77e642049423174728daf2bf
+    expression: nodata(/OS-API-Probe-Project/os.mid.total_ms,{$OS_MID.NODATA})=1
+    name: 'OpenStack project probe mid: no data'
+    priority: HIGH
+    description: No value from the mid timer. Check the systemd timer on the proxy host, journalctl -u os-probe-project@mid, and that zabbix_host in the ini matches this host name.
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-mid
+  - uuid: 45f28bef1152422eb5981de571870ec0
+    expression: min(/OS-API-Probe-Project/os.mid.total_ms,#3)>{$OS_MID.RUNTIME.WARN}
+    name: 'OpenStack project probe mid: running slow'
+    priority: WARNING
+    description: Close to mid_deadline_ms.
+    dependencies:
+    - name: 'OpenStack project probe mid: script failing'
+      expression: last(/OS-API-Probe-Project/os.mid.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-mid
+  - uuid: d4619dcd90754917b41978ff79ef5957
+    expression: last(/OS-API-Probe-Project/os.mid.collect_ok)=0
+    name: 'OpenStack project probe mid: script failing'
+    priority: HIGH
+    description: 'Config error or crash - see item "Probe mid: global error". This is the probe, not the cloud, so it never counts as downtime.'
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-mid
+  - uuid: 45918e081b7f42cfbd665983cbc8b9e5
+    expression: min(/OS-API-Probe-Project/os.slow.checks_deadline,#3)>0
+    name: 'OpenStack project probe slow: hitting its deadline'
+    priority: WARNING
+    description: Checks were skipped (http_status -1) because the run reached slow_deadline_ms.
+    dependencies:
+    - name: 'OpenStack project probe slow: script failing'
+      expression: last(/OS-API-Probe-Project/os.slow.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-slow
+  - uuid: 29538b8590104114bb3a3a879d0367a2
+    expression: nodata(/OS-API-Probe-Project/os.slow.total_ms,{$OS_SLOW.NODATA})=1
+    name: 'OpenStack project probe slow: no data'
+    priority: HIGH
+    description: No value from the slow timer. Check the systemd timer on the proxy host, journalctl -u os-probe-project@slow, and that zabbix_host in the ini matches this host name.
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-slow
+  - uuid: 1b4183a694c64afe8b11892b2c58fc39
+    expression: min(/OS-API-Probe-Project/os.slow.total_ms,#3)>{$OS_SLOW.RUNTIME.WARN}
+    name: 'OpenStack project probe slow: running slow'
+    priority: WARNING
+    description: Close to slow_deadline_ms.
+    dependencies:
+    - name: 'OpenStack project probe slow: script failing'
+      expression: last(/OS-API-Probe-Project/os.slow.collect_ok)=0
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-slow
+  - uuid: a8035dcee427445a831b20fac7a7a966
+    expression: last(/OS-API-Probe-Project/os.slow.collect_ok)=0
+    name: 'OpenStack project probe slow: script failing'
+    priority: HIGH
+    description: 'Config error or crash - see item "Probe slow: global error". This is the probe, not the cloud, so it never counts as downtime.'
+    tags:
+    - tag: scope
+      value: project
+    - tag: impact
+      value: monitoring
+    - tag: service
+      value: monitoring
+    - tag: component
+      value: os-probe-slow

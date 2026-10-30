@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenStack API probe for Zabbix, project scope (mid tier, every 5min)
+
+[Timer]
+# 30s after the cloud-scope timer of the same tier, so both do not start together
+OnCalendar=*:3/5:30
+AccuracySec=1s
+RandomizedDelaySec=15s
+Unit=os-probe-project@mid.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,78 @@
+OpenStack_Service,Tier_Group,SLA_Name,SLA_Dimension,SLO_Target,Zabbix_Service_Branch,What_Is_Checked_In_Zabbix,HA_and_SLA_Evaluation_Rule,Zabbix_Problem_Tags_Filter
+Keystone,1-Shared-Critical,Keystone - Availability SLA,Availability (Uptime),99.90%,<AZ> · Keystone · Availability,"1) VIP HTTP status (/v3)
+2) Token issue status (POST /v3/auth/tokens)
+3) Service Catalog count (/auth/catalog)
+4) Per-controller API status","• VIP หรือ Token พังติดต่อกัน >= 5 นาที (#3 รอบ) = นับ SLA
+• Controller รายโหนด = ต้องพังครบทุกโหนด (ALG_ALL, running nodes = 0) นาน >= 5 นาที","service=keystone, impact=availability, az=<AZ>
+(แยกย่อย target=vip, layer=L3, target=<ctl_ip>)"
+Keystone,1-Shared-Critical,Keystone - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Keystone · Response Time,"1) Token issue time (os.fast.auth.ms <= 5000 ms)
+2) VIP API response time (os.api.ms <= 5000 ms)",ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP หรือตอนขอ Token = นับ SLA,"service=keystone, impact=stability, target=vip (และ component=token), az=<AZ>"
+Nova,2-Core,Nova - Availability SLA,Availability (Uptime),99.90%,<AZ> · Nova · Availability,"1) VIP HTTP status (/) & noVNC (/vnc_lite.html)
+2) Controller API + noVNC รายโหนด
+3) nova-scheduler & nova-conductor บนทุก Controller
+4) จำนวน Hypervisor ที่พร้อมรับงาน (schedulable > 0)","• VIP พัง >= 5 นาที (#3 รอบ) หรือ Hypervisor เหลือ 0 = นับ SLA
+• Controller API / scheduler / conductor = ถ้ารันอยู่ > 0 โหนดถือว่าปกติ; ต้องพังครบทุกโหนด (ALG_ALL) >= 5 นาที จึงนับ SLA","service=nova, impact=availability, az=<AZ>
+(แยกย่อย target=vip, layer=L3, target=<ctl_ip>, node~<ctl_host>)"
+Nova,2-Core,Nova - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Nova · Response Time,"1) VIP API response time (os.api.ms <= 5000 ms)
+2) VIP noVNC response time (<= 5000 ms)",ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=nova, impact=stability, target=vip, az=<AZ>"
+Placement,2-Core,Placement - Availability SLA,Availability (Uptime),99.90%,<AZ> · Placement · Availability,"1) VIP HTTP status (/)
+2) Controller API รายโหนด","• VIP พัง >= 5 นาที (#3 รอบ) = นับ SLA
+• Controller รายโหนด = ต้องพังครบทุกโหนด (ALG_ALL) >= 5 นาที","service=placement, impact=availability, az=<AZ>
+(แยกย่อย target=vip, target=<ctl_ip>)"
+Placement,2-Core,Placement - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Placement · Response Time,1) VIP API response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=placement, impact=stability, target=vip, az=<AZ>"
+Glance,2-Core,Glance - Availability SLA,Availability (Uptime),99.90%,<AZ> · Glance · Availability,"1) VIP HTTP status (/) & /v2/images?limit=1
+2) Glance Stores (/v2/info/stores ไม่หาย)
+3) Canary Image Download (ดึงไฟล์ byte 0-0 สำเร็จ)
+4) Controller API รายโหนด","• VIP / Store หาย / Canary ดึงไม่ได้ >= 5 นาที = นับ SLA
+• Controller รายโหนด = ต้องพังครบทุกโหนด (ALG_ALL) >= 5 นาที","service=glance, impact=availability, az=<AZ>
+(แยกย่อย target=vip, layer=L3, target=<ctl_ip>)"
+Glance,2-Core,Glance - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Glance · Response Time,1) VIP API & /v2/images response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=glance, impact=stability, target=vip, az=<AZ>"
+Cinder,2-Core,Cinder - Availability SLA,Availability (Uptime),99.90%,<AZ> · Cinder · Availability,"1) VIP HTTP status (/) & /os-services
+2) Controller API รายโหนด
+3) cinder-scheduler, cinder-volume, cinder-backup
+4) Cinder Storage Pool backend state (up/down)","• VIP พัง >= 5 นาที หรือ Storage Pool backend down = นับ SLA
+• Controller API / cinder services = ต้องพังครบทุกโหนด (ALG_ALL) >= 5 นาที","service=cinder, impact=availability, az=<AZ>
+(แยกย่อย target=vip, layer=L3, target=<ctl_ip>, node~<ctl_host>)"
+Cinder,2-Core,Cinder - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Cinder · Response Time,1) VIP API response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=cinder, impact=stability, target=vip, az=<AZ>"
+Neutron,2-Core,Neutron - Availability SLA,Availability (Uptime),99.90%,<AZ> · Neutron · Availability,"1) VIP HTTP status (/) & /v2.0/networks?limit=1
+2) Controller API รายโหนด","• VIP พัง หรือดึง /networks ไม่ได้ >= 5 นาที (#3 รอบ) = นับ SLA
+• Controller รายโหนด = ต้องพังครบทุกโหนด (ALG_ALL) >= 5 นาที","service=neutron, impact=availability, az=<AZ>
+(แยกย่อย target=vip, target=<ctl_ip>)"
+Neutron,2-Core,Neutron - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Neutron · Response Time,1) VIP API & /v2.0/networks response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=neutron, impact=stability, target=vip, az=<AZ>"
+OpenSDN,2-Core,OpenSDN - Availability SLA,Availability (Uptime),99.90%,<AZ> · OpenSDN · Availability,"1) OpenSDN Modules (os.sdn.module.up > 0 สำหรับทุก module หลัก)
+2) Per-node config-api:8082, analytics-api:8081, control:8083",• Module ใดตายครบทุกโหนด (up=0) หรือ API รายโหนดพังครบทุกโหนด (ALG_ALL) >= 5 นาที = นับ SLA,"service=opensdn, impact=availability, az=<AZ>"
+OpenSDN,2-Core,OpenSDN - Response Time SLA,Response Time (Latency),99.90%,<AZ> · OpenSDN · Response Time,1) config-api / analytics-api / control response time (<= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) พร้อมกันทุกโหนด SDN (ALG_ALL) = นับ SLA,"service=opensdn, impact=stability, target=<sdn_ip>, az=<AZ>"
+Octavia,3-Non-Core,Octavia (LBaaS) - Availability SLA,Availability (Uptime),99.90%,<AZ> · Octavia · Availability,"1) VIP HTTP status (/) & /v2/lbaas/providers
+2) Controller API รายโหนด
+3) Octavia Health Manager (UDP 5555 listening)","• VIP พัง >= 5 นาที = นับ SLA
+• Controller API / UDP 5555 = ต้องพังครบทุกโหนด (ALG_ALL) >= 5 นาที","service=octavia, impact=availability, az=<AZ>
+(แยกย่อย target=vip, target=<ctl_ip>, node=<ctl_host>)"
+Octavia,3-Non-Core,Octavia (LBaaS) - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Octavia · Response Time,1) VIP API & /v2/lbaas/providers response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=octavia, impact=stability, target=vip, az=<AZ>"
+Horizon,3-Non-Core,Horizon (Portal) - Availability SLA,Availability (Uptime),99.90%,<AZ> · Horizon · Availability,1) VIP Login page (/auth/login/ HTTP 200),หน้า Login ล่มติดต่อกัน >= 5 นาที (#3 รอบ) = นับ SLA,"service=horizon, target=vip, impact=availability, az=<AZ>"
+Horizon,3-Non-Core,Horizon (Portal) - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Horizon · Response Time,1) VIP Login page response time (os.api.ms <= 5000 ms),หน้า Login ช้าเกิน 5 วินาที (> 5000 ms) ติดกัน 3 รอบ (#3) = นับ SLA,"service=horizon, target=vip, impact=stability, az=<AZ>"
+Heat,3-Non-Core,Heat (Orchestration) - Availability SLA,Availability (Uptime),99.90%,<AZ> · Heat · Availability,"1) VIP HTTP status (/) & /services
+2) Controller API รายโหนด + heat-engine",VIP พัง >= 5 นาที หรือ heat-engine ตายครบทุกโหนด (ALG_ALL) >= 5 นาที = นับ SLA,"service=heat, impact=availability, az=<AZ>"
+Heat,3-Non-Core,Heat (Orchestration) - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Heat · Response Time,1) VIP API response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=heat, impact=stability, target=vip, az=<AZ>"
+Magnum,3-Non-Core,Magnum (K8s) - Availability SLA,Availability (Uptime),99.90%,<AZ> · Magnum · Availability,"1) VIP HTTP status (/) & /mservices
+2) Controller API รายโหนด + magnum-conductor",VIP พัง >= 5 นาที หรือ magnum-conductor ตายครบทุกโหนด (ALG_ALL) >= 5 นาที = นับ SLA,"service=magnum, impact=availability, az=<AZ>"
+Magnum,3-Non-Core,Magnum (K8s) - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Magnum · Response Time,1) VIP API response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=magnum, impact=stability, target=vip, az=<AZ>"
+Barbican,3-Non-Core,Barbican (Key Mgr) - Availability SLA,Availability (Uptime),99.90%,<AZ> · Barbican · Availability,"1) VIP HTTP status (/)
+2) Controller API รายโหนด",VIP พัง >= 5 นาที หรือ Controller พังครบทุกโหนด (ALG_ALL) >= 5 นาที = นับ SLA,"service=barbican, impact=availability, az=<AZ>"
+Barbican,3-Non-Core,Barbican (Key Mgr) - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Barbican · Response Time,1) VIP API response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=barbican, impact=stability, target=vip, az=<AZ>"
+Trove,3-Non-Core,Trove (DBaaS) - Availability SLA,Availability (Uptime),99.90%,<AZ> · Trove · Availability,"1) VIP HTTP status (/) & /datastores
+2) Controller API รายโหนด",VIP พัง >= 5 นาที หรือ Controller พังครบทุกโหนด (ALG_ALL) >= 5 นาที = นับ SLA,"service=trove, impact=availability, az=<AZ>"
+Trove,3-Non-Core,Trove (DBaaS) - Response Time SLA,Response Time (Latency),99.90%,<AZ> · Trove · Response Time,1) VIP API response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=trove, impact=stability, target=vip, az=<AZ>"
+Ironic / Manila / Swift,3-Non-Core,Ironic / Manila / Swift - Availability SLA,Availability (Uptime),99.90%,<AZ> · <Service> · Availability,"1) VIP HTTP status + Conductors/Services (ถ้าเปิดใช้)
+2) Controller API รายโหนด",VIP พัง >= 5 นาที หรือ Service ตายครบทุกโหนด (ALG_ALL) >= 5 นาที = นับ SLA,"service=<ironic|manila|swift>, impact=availability, az=<AZ>"
+Ironic / Manila / Swift,3-Non-Core,Ironic / Manila / Swift - Response Time SLA,Response Time (Latency),99.90%,<AZ> · <Service> · Response Time,1) VIP API response time (os.api.ms <= 5000 ms),ช้าเกิน 5 วินาที (> 5000 ms) ติดต่อกัน 3 รอบ (#3) ที่ VIP = นับ SLA,"service=<ironic|manila|swift>, impact=stability, target=vip, az=<AZ>"
+RabbitMQ,1-Shared-Critical,RabbitMQ - Availability SLA,Availability (Uptime),99.90%,<AZ> · RabbitMQ,"1) Management API connect ไม่ได้เกิน 5 นาที (nodata 5m)
+2) Nodes running <= ครึ่งหนึ่ง (เสีย Quorum) เกิน 5 นาที (#5)
+3) Network partition > 0 เกิน 5 นาที (#5)
+4) Memory / Disk alarm (บล็อก Publisher) เกิน 5 นาที (#5)","เกิดปัญหาข้อใดข้อหนึ่งนาน >= 5 นาที = นับ SLA ทันที (ALG_ANY)
+*กรองเฉพาะ component=rabbitmq เพื่อไม่ให้ Queue consumer=0 ของเซอร์วิสอื่นมาฉุด SLA ของ RabbitMQ*","service=rabbitmq, component=rabbitmq, impact=availability, az=<AZ>"
+HAProxy,1-Shared-Critical,HAProxy - Availability SLA,Availability (Uptime),99.90%,<AZ> · HAProxy,"1) HAProxy Backend state (haproxy.backend.state[""{#PXNAME}""])
+(หมายเหตุ: ถ้า Server ข้างหลังพังแค่ 1 โหนด เป็น impact=stability ไม่นับ SLA)",Backend ใดมี state Down (0) ติดต่อกัน >= 5 นาที (#5 รอบ) = นับ SLA ทันที,"service=haproxy, impact=availability, az=<AZ>"
+MariaDB Galera,1-Shared-Critical,MariaDB Galera - Availability SLA,Availability (Uptime),99.90%,<AZ> · MariaDB,"1) mysql.ping รายโหนด
+2) galera.ready, galera.primary, galera.synced",Quorum Rule: พังตั้งแต่ 2 ใน 3 โหนดขึ้นไป นาน >= 5 นาที (#5 รอบ) = นับ SLA (Disaster),"service=mariadb, node=<ctl_host>, impact=availability, az=<AZ>"
+keepalived (VIP),1-Shared-Critical,keepalived VIP - Availability SLA,Availability (Uptime),99.90%,<AZ> · keepalived,1) Internal/External VIP ไม่ได้อยู่บนโหนดใดเลย (0) หรือซ้ำกัน (>1),VIP หายหรือ Split-brain นาน >= 5 นาที (#5 รอบ) = นับ SLA ทันที (ALG_ANY),"service=keepalived, impact=availability, az=<AZ>"
+memcached,1-Shared-Critical,memcached - Availability SLA,Availability (Uptime),99.90%,<AZ> · memcached,1) memcached.ping รายโหนด,ต้องพังครบทุกโหนด Controller (ALG_ALL) นาน >= 5 นาที (#5 รอบ) จึงนับ SLA,"service=memcached, node=<ctl_host>, impact=availability, az=<AZ>"

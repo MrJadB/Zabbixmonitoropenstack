@@ -1,0 +1,24 @@
+{
+  "zabbix": {"url": "https://stellar.nipa.cloud/api_jsonrpc.php"},
+  "root": "NIPA Cloud Projects",
+  "dashboard": "OpenStack · ProjectScope",
+  "sla": {
+    "slo": 99.9,
+    "period": "monthly",
+    "timezone": "Asia/Bangkok",
+    "effective_date": "2026-11-01",
+    "excluded_downtimes": []
+  },
+  "projects": [
+    {
+      "name": "admin",
+      "zabbix_host": "nipa-openstack-apiproject",
+      "services": ["keystone", "nova", "cinder", "neutron", "glance", "heat", "octavia", "trove", "magnum", "barbican"]
+    }
+  ],
+  "_help": {
+    "name": "must equal the host tag project=<name> on the Zabbix host",
+    "zabbix_host": "host with template OS-API-Probe-Project = zabbix_host in os_probe_project.ini",
+    "services": "service tags to model; omit for the default list. Optional per-project \"slo\"."
+  }
+}

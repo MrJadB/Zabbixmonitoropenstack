@@ -1,0 +1,84 @@
+# /etc/zabbix/os_probe.ini  - chmod 600, owner zabbix
+# One [section] per AZ. All sections run in parallel in one process.
+# Credentials live here, not in Zabbix macros.
+# Comments must be on their own line (configparser keeps text after a value).
+
+[DEFAULT]
+# cloud = whole cloud with the monitoring role (this file). project = one project's
+# view with a member/reader credential: use a separate ini, see
+# zabbixopenstack-projectscope/deploy/os_probe_project.ini.example
+scope = cloud
+# the AZ proxy, trapper port
+zabbix_server = 127.0.0.1
+zabbix_port = 10051
+iface = internal
+# Endpoints are plain http: no CA needed. Only for https with Kolla's own CA:
+#   ca_file = /etc/zabbix/kolla-internal-ca.crt
+ca_file =
+http_timeout_ms = 10000
+fast_deadline_ms = 40000
+mid_deadline_ms = 120000
+slow_deadline_ms = 300000
+workers = 8
+stuck_minutes = 60
+list_cap = 1000
+
+[bkk]
+# Zabbix host with template OS-API-Probe and host tag az=BKK
+zabbix_host = OpenStack BKK
+auth_url = http://INTERNAL-VIP:5000
+# application credential created with the monitoring role
+cred_id = CHANGE-ME
+cred_secret = CHANGE-ME
+# controller IPs for per-node L2 root checks (empty = VIP only)
+nodes = 10.0.0.11,10.0.0.12,10.0.0.13
+# Kolla API backends listen plain http behind HAProxy
+node_scheme = http
+horizon_url = https://PUBLIC-VIP
+# something outside OpenStack: tells "probe host cut off" from "cloud down"
+ref_url = http://GATEWAY-OR-ZABBIX/
+# tiny dedicated monitoring image (empty = no canary)
+canary_id =
+# keeps L2 checks running while Keystone is down
+catalog_cache = /var/lib/zabbix/os_probe_bkk.catalog.json
+maint_hosts =
+# services not checked at all (L2 + L3 reported as skipped -1; set empty to check swift)
+skip_types = swift
+# Specific check names to skip (e.g. pools, os-services, swift:*)
+# wildcards ok: heat:stacks* skips every Heat stack check (stacks, stacks_failed,
+# stacks_creating / _updating / _deleting)
+skip_checks = pools
+# AZs / cells to skip in discovery (e.g. unprovisioned AZs like kkn)
+skip_azs = kkn
+skip_hosts_regex =
+# ---- TLS certificate expiry (slow tier) ----
+# https endpoints of these catalog interfaces get one row each (internal is http here)
+tls_interfaces = public
+# endpoints outside the catalog: name=host:port,...
+tls_extra =
+# ---- S3 / Ceph RGW (optional; runs without a Keystone token) ----
+# The proxy host must reach the URLs directly (http_proxy / https_proxy are ignored).
+# RGW zonegroup api_name: radosgw-admin zonegroup get | grep api_name
+s3_region = NCP-TH
+# RGW user zbx-monitor (radosgw-admin user create on the metadata master zone)
+s3_access_key = CHANGE-ME
+s3_secret_key = CHANGE-ME
+#
+# Option B - several RGW zones checked from this one section (one proxy, one
+# Zabbix host). Rows get target=<zone>; every zone reads the other zones'
+# markers = replication lag in both directions. Set "s3_zones" on the AZ in
+# os_zabbix_setup.json too, for per-zone Services / SLAs.
+s3_zones = bkk,non
+s3_bkk_url = https://s3-bkk.stg.thaiopenstack.org
+s3_bkk_bucket = zbx-monitor-bkk
+s3_bkk_static_url =
+s3_non_url = https://s3-non.stg.thaiopenstack.org
+s3_non_bucket = zbx-monitor-non
+s3_non_static_url =
+#
+# Option A - one endpoint per section (one Zabbix host per AZ). Use instead of
+# s3_zones (s3_zones wins when both are set). Rows get target=vip.
+#   s3_url = https://s3-bkk.stg.thaiopenstack.org
+#   s3_bucket = zbx-monitor-bkk
+#   s3_peer_bucket = zbx-monitor-non
+#   s3_static_url =

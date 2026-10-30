@@ -1,0 +1,16 @@
+# One unit per tier: os-probe@fast / os-probe@mid / os-probe@slow
+# Type=oneshot: a timer never starts a new round while the last one still runs.
+[Unit]
+Description=OpenStack API probe for Zabbix (%i tier)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=zabbix
+Group=zabbix
+ExecStart=/usr/local/bin/os_probe.py --tier %i --send -c /etc/zabbix/os_probe.ini
+# Longer than the slowest deadline (slow_deadline_ms 300000) + http_timeout_ms + margin.
+# The script stops itself at its own deadline; this is only the hard stop.
+TimeoutStartSec=360
+Nice=10

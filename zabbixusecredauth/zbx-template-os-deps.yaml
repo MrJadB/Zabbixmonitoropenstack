@@ -1,0 +1,2192 @@
+zabbix_export:
+  version: '6.0'
+  date: '2026-10-21T00:00:00Z'
+  groups:
+  - uuid: 98572aa9d8a14015a12356dbee9e6295
+    name: Templates/OpenStack
+  templates:
+  - uuid: c3b97286c81d4a3cbbd3ddd5f01456ef
+    template: OS-Deps-Node-api
+    name: OS-Deps-Node-api
+    description: |-
+      L4 dependencies seen from each controller. Link to every controller host (Zabbix agent 2).
+      
+        MariaDB Galera   agent 2 MySQL plugin: wsrep_* status, connections
+        memcached        agent 2 Memcached plugin
+        keepalived VIP   /proc/net/fib_trie: is the VIP local on this node (OS-Deps-Cluster sums it)
+        Octavia HM       net.udp.listen on the health-manager port
+      
+      Kolla binds MariaDB and memcached to the API interface, not localhost: the host interface IP
+      ({HOST.CONN}) must be the node's API IP.
+      
+      DB user (read-only is enough):
+        CREATE USER 'zbx_monitor'@'%' IDENTIFIED BY '<pw>';
+        GRANT USAGE, REPLICATION CLIENT, PROCESS, SHOW DATABASES, SHOW VIEW ON *.* TO 'zbx_monitor'@'%';
+      
+      Tags: service / layer=L4 / impact / component / node. Set host tag az=<AZ>.
+    groups:
+    - name: Templates/OpenStack
+    items:
+    - uuid: 866ce0611cfd449d95ff1ecdbbd3dbf2
+      name: 'MariaDB: ping'
+      key: 'mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      delay: 1m
+      history: 31d
+      valuemap:
+        name: Service state
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: 5bb7fd6f5a0446e79d44a7b25c26e53c
+      name: 'MariaDB: status variables (raw)'
+      key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      delay: 1m
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      description: 'SHOW GLOBAL STATUS as JSON. Not stored; dependents read it.'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: 8b7c4e7df11e4fc7b567b85ed07a350b
+      name: 'Galera: ready'
+      type: DEPENDENT
+      key: galera.ready
+      delay: '0'
+      history: 31d
+      valuemap:
+        name: Yes/No
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.wsrep_ready
+      - type: JAVASCRIPT
+        parameters:
+        - 'return (value === ''true'' || value === true || value === ''ON'' || value === ''1'') ? 1 : 0;'
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: b34d99a8f8cd4715b82c11098eda7daa
+      name: 'Galera: cluster status'
+      type: DEPENDENT
+      key: galera.cluster_status
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.wsrep_cluster_status
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: 4e639fa3038f4b91b4cfd445c5fa0d66
+      name: 'Galera: primary component'
+      type: DEPENDENT
+      key: galera.primary
+      delay: '0'
+      history: 31d
+      valuemap:
+        name: Yes/No
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.wsrep_cluster_status
+      - type: JAVASCRIPT
+        parameters:
+        - 'return value === ''Primary'' ? 1 : 0;'
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: 71d0b80bf694492db13d4909da089503
+      name: 'Galera: cluster size'
+      type: DEPENDENT
+      key: galera.size
+      delay: '0'
+      history: 31d
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.wsrep_cluster_size
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: 224f7d4cd49643a18c29905da2629b27
+      name: 'Galera: local state'
+      type: DEPENDENT
+      key: galera.state
+      delay: '0'
+      history: 7d
+      trends: '0'
+      value_type: CHAR
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.wsrep_local_state_comment
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: c5520ddb6f66450cafa9de2f8045ad4a
+      name: 'Galera: synced'
+      type: DEPENDENT
+      key: galera.synced
+      delay: '0'
+      history: 31d
+      valuemap:
+        name: Yes/No
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.wsrep_local_state_comment
+      - type: JAVASCRIPT
+        parameters:
+        - 'return value === ''Synced'' ? 1 : 0;'
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: 31c76fdf020a4893aa6384ddf6e5ebab
+      name: 'Galera: flow control paused (cumulative)'
+      type: DEPENDENT
+      key: galera.flow_paused_ns
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      units: ns
+      description: 'Stored cumulative on purpose (CHANGE_PER_SECOND bug ZBX-24890); the ratio is a calculated item.'
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.wsrep_flow_control_paused_ns
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: d2606d266afd467c95076f38abef3aaa
+      name: 'Galera: flow control paused ratio'
+      type: CALCULATED
+      key: galera.flow_paused.ratio
+      delay: 1m
+      history: 31d
+      value_type: FLOAT
+      params: '(last(//galera.flow_paused_ns)-last(//galera.flow_paused_ns,#2))/60000000000'
+      description: 'Share of the last minute replication was paused. 0.1 = paused 10% of the time.'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: d2eb39dff89b4398af85e45a41ba10ee
+      name: 'Galera: local receive queue'
+      type: DEPENDENT
+      key: galera.recv_queue
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.wsrep_local_recv_queue
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: 6778e098e94d477388869e030387021d
+      name: 'MariaDB: threads connected'
+      type: DEPENDENT
+      key: mysql.threads_connected
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.Threads_connected
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: 92baf1e3401b48e39f4bbb8e2368a2fb
+      name: 'MariaDB: max used connections'
+      type: DEPENDENT
+      key: mysql.max_used_connections
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.Max_used_connections
+      master_item:
+        key: 'mysql.get_status_variables["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"]'
+      tags:
+      - tag: service
+        value: mariadb
+      - tag: layer
+        value: L4
+      - tag: component
+        value: galera
+    - uuid: a4f357e6f3b64ee6b1379ac854548d8e
+      name: 'memcached: ping'
+      key: 'memcached.ping["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"]'
+      delay: 1m
+      history: 31d
+      valuemap:
+        name: Service state
+      tags:
+      - tag: service
+        value: memcached
+      - tag: layer
+        value: L4
+      - tag: component
+        value: memcached
+    - uuid: 1f68c682c24b43d9af4ee6d0427d5643
+      name: 'memcached: stats (raw)'
+      key: 'memcached.stats["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"]'
+      delay: 1m
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      tags:
+      - tag: service
+        value: memcached
+      - tag: layer
+        value: L4
+      - tag: component
+        value: memcached
+    - uuid: 866627b790bb483faf398d7c43a2e054
+      name: 'memcached: get hits (cumulative)'
+      type: DEPENDENT
+      key: memcached.get_hits
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.get_hits
+      master_item:
+        key: 'memcached.stats["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"]'
+      tags:
+      - tag: service
+        value: memcached
+      - tag: layer
+        value: L4
+      - tag: component
+        value: memcached
+    - uuid: 08743664964d45809406bb57ef4d7aee
+      name: 'memcached: get misses (cumulative)'
+      type: DEPENDENT
+      key: memcached.get_misses
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.get_misses
+      master_item:
+        key: 'memcached.stats["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"]'
+      tags:
+      - tag: service
+        value: memcached
+      - tag: layer
+        value: L4
+      - tag: component
+        value: memcached
+    - uuid: 08e9b1a0a5944fa08db81a5882db9608
+      name: 'memcached: evictions (cumulative)'
+      type: DEPENDENT
+      key: memcached.evictions
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.evictions
+      master_item:
+        key: 'memcached.stats["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"]'
+      tags:
+      - tag: service
+        value: memcached
+      - tag: layer
+        value: L4
+      - tag: component
+        value: memcached
+    - uuid: 1a44e758211e4f71bbbf81555771b537
+      name: 'memcached: current connections'
+      type: DEPENDENT
+      key: memcached.curr_connections
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.curr_connections
+      master_item:
+        key: 'memcached.stats["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"]'
+      tags:
+      - tag: service
+        value: memcached
+      - tag: layer
+        value: L4
+      - tag: component
+        value: memcached
+    - uuid: 883acc06ac43482c84008ed6a9f4031a
+      name: 'memcached: max connections'
+      type: DEPENDENT
+      key: memcached.max_connections
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.max_connections
+      master_item:
+        key: 'memcached.stats["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"]'
+      tags:
+      - tag: service
+        value: memcached
+      - tag: layer
+        value: L4
+      - tag: component
+        value: memcached
+    - uuid: c919846fb43144dcaea0701eb05c9e00
+      name: 'memcached: hit ratio'
+      type: CALCULATED
+      key: memcached.hit_ratio
+      delay: 1m
+      history: 31d
+      value_type: FLOAT
+      units: '%'
+      params: '100*(last(//memcached.get_hits)-last(//memcached.get_hits,#2))/(last(//memcached.get_hits)-last(//memcached.get_hits,#2)+last(//memcached.get_misses)-last(//memcached.get_misses,#2)+1)'
+      description: Over the last minute. +1 in the divisor keeps an idle minute from dividing by 0.
+      tags:
+      - tag: service
+        value: memcached
+      - tag: layer
+        value: L4
+      - tag: component
+        value: memcached
+    - uuid: fd4f44ac804247da9d4fbbf20460513c
+      name: 'keepalived: routing table (raw)'
+      key: vfs.file.contents[/proc/net/fib_trie]
+      delay: 1m
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      description: 'World-readable, no sudo. Local addresses show as "/32 host LOCAL".'
+      tags:
+      - tag: service
+        value: keepalived
+      - tag: layer
+        value: L4
+      - tag: component
+        value: vip
+    - uuid: 46c9d3cbe8194b4392f497a21cb2d44a
+      name: 'keepalived: internal VIP on this node'
+      type: DEPENDENT
+      key: os.vip.present[internal]
+      delay: '0'
+      history: 31d
+      description: Summed across controllers by OS-Deps-Cluster. Empty macro = not supported (skipped by the sum).
+      valuemap:
+        name: Yes/No
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+            var vip = '{$OS_VIP.INTERNAL}';
+            if (!vip) { throw 'VIP macro is empty - item disabled on purpose'; }
+            var lines = value.split('\n');
+            for (var i = 0; i < lines.length - 1; i++) {
+              if (lines[i].replace(/^[\s|+`-]+/, '') === vip && /\/32 host LOCAL/.test(lines[i + 1])) {
+                return 1;
+              }
+            }
+            return 0;
+      master_item:
+        key: vfs.file.contents[/proc/net/fib_trie]
+      tags:
+      - tag: service
+        value: keepalived
+      - tag: layer
+        value: L4
+      - tag: component
+        value: vip
+    - uuid: c057ce1ef81c48be9687167c80ad9bfa
+      name: 'keepalived: external VIP on this node'
+      type: DEPENDENT
+      key: os.vip.present[external]
+      delay: '0'
+      history: 31d
+      valuemap:
+        name: Yes/No
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+            var vip = '{$OS_VIP.EXTERNAL}';
+            if (!vip) { throw 'VIP macro is empty - item disabled on purpose'; }
+            var lines = value.split('\n');
+            for (var i = 0; i < lines.length - 1; i++) {
+              if (lines[i].replace(/^[\s|+`-]+/, '') === vip && /\/32 host LOCAL/.test(lines[i + 1])) {
+                return 1;
+              }
+            }
+            return 0;
+      master_item:
+        key: vfs.file.contents[/proc/net/fib_trie]
+      tags:
+      - tag: service
+        value: keepalived
+      - tag: layer
+        value: L4
+      - tag: component
+        value: vip
+    - uuid: e906b51497a249779144aabff318a2de
+      name: 'Octavia health manager: UDP listening'
+      key: net.udp.listen[{$OCTAVIA.HM.PORT}]
+      delay: 1m
+      history: 31d
+      description: Amphorae send heartbeats here. Disable this item on nodes without octavia_health_manager.
+      valuemap:
+        name: Yes/No
+      tags:
+      - tag: service
+        value: octavia
+      - tag: layer
+        value: L4
+      - tag: component
+        value: health-manager
+    macros:
+    - macro: '{$GALERA.FLOW.WARN}'
+      value: '0.1'
+      description: Flow control paused ratio warning (0-1).
+    - macro: '{$GALERA.RECVQ.WARN}'
+      value: '100'
+      description: Receive queue warning.
+    - macro: '{$GALERA.SIZE}'
+      value: '3'
+      description: Expected Galera cluster size.
+    - macro: '{$MEMCACHED.CONN.WARN}'
+      value: '90'
+      description: 'Connections warning, % of max_connections.'
+    - macro: '{$MEMCACHED.EVICT.MAX}'
+      value: '0'
+      description: Evictions per minute allowed.
+    - macro: '{$MEMCACHED.PORT}'
+      value: '11211'
+      description: memcached port on the API interface.
+    - macro: '{$MYSQL.CONN.WARN}'
+      value: '80'
+      description: 'Connections warning, % of {$MYSQL.MAX_CONN}.'
+    - macro: '{$MYSQL.MAX_CONN}'
+      value: '10000'
+      description: MariaDB max_connections (Kolla default 10000).
+    - macro: '{$MYSQL.PASSWORD}'
+      type: SECRET_TEXT
+      description: Set on the host or a host group. Secret text.
+    - macro: '{$MYSQL.PORT}'
+      value: '3306'
+      description: MariaDB port on the API interface.
+    - macro: '{$MYSQL.USER}'
+      value: zbx_monitor
+      description: Read-only monitoring user (see template description).
+    - macro: '{$OCTAVIA.HM.PORT}'
+      value: '5555'
+      description: octavia health manager UDP port.
+    - macro: '{$OS_VIP.EXTERNAL}'
+      value: ''
+      description: kolla_external_vip_address. Empty = not checked.
+    - macro: '{$OS_VIP.INTERNAL}'
+      value: ''
+      description: kolla_internal_vip_address of this AZ. Set on the host group.
+    valuemaps:
+    - uuid: 02eb2ac096ad48cfa95182220bba517f
+      name: Service state
+      mappings:
+      - value: '0'
+        newvalue: Down
+      - value: '1'
+        newvalue: Up
+    - uuid: 538b5b4f4a74468480f0ce2bf1b16b96
+      name: Yes/No
+      mappings:
+      - value: '0'
+        newvalue: 'No'
+      - value: '1'
+        newvalue: 'Yes'
+  - uuid: 7e60fe757526452494498f6b4d65992e
+    template: OS-Deps-Cluster
+    name: OS-Deps-Cluster
+    description: |-
+      L4 cluster-wide checks. Link to the AZ host (the same host as OS-API-Probe).
+      
+        RabbitMQ   management API via the internal VIP (Kolla publishes rabbitmq_management on 15672):
+                   nodes, partitions, alarms, fd/sockets, queues with no consumers (regex-filtered
+                   server-side, never the full /api/queues)
+        keepalived how many controllers hold the VIP (sum of OS-Deps-Node items in {$OS_CTL.GROUP})
+      
+      RabbitMQ user: rabbitmqctl add_user zbx_monitor <pw>; set_user_tags zbx_monitor monitoring;
+      set_permissions -p / zbx_monitor '' '' '.*'
+    groups:
+    - name: Templates/OpenStack
+    items:
+    - uuid: ee562eb802fd45f785d40760ec0a2e87
+      name: 'RabbitMQ: nodes (raw)'
+      type: HTTP_AGENT
+      key: rabbitmq.nodes.raw
+      delay: '{$RABBITMQ.INTERVAL}'
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      url: '{$RABBITMQ.API.URL}/api/nodes'
+      authtype: BASIC
+      username: '{$RABBITMQ.USERNAME}'
+      password: '{$RABBITMQ.PASSWORD}'
+      timeout: 10s
+      query_fields:
+      - name: columns
+        value: 'name,running,mem_alarm,disk_free_alarm,fd_used,fd_total,sockets_used,sockets_total,partitions'
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: 7038be09aacb4d38bff883e76e0c57b5
+      name: 'RabbitMQ: overview (raw)'
+      type: HTTP_AGENT
+      key: rabbitmq.overview.raw
+      delay: '{$RABBITMQ.INTERVAL}'
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      url: '{$RABBITMQ.API.URL}/api/overview'
+      authtype: BASIC
+      username: '{$RABBITMQ.USERNAME}'
+      password: '{$RABBITMQ.PASSWORD}'
+      timeout: 10s
+      query_fields:
+      - name: columns
+        value: 'cluster_name,queue_totals,object_totals'
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: a65de97e2ecf4eac8e67d318b8439839
+      name: 'RabbitMQ: OpenStack queues (raw)'
+      type: HTTP_AGENT
+      key: rabbitmq.queues.raw
+      delay: '{$RABBITMQ.INTERVAL}'
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      url: '{$RABBITMQ.API.URL}/api/queues/{$RABBITMQ.VHOST}'
+      authtype: BASIC
+      username: '{$RABBITMQ.USERNAME}'
+      password: '{$RABBITMQ.PASSWORD}'
+      timeout: 10s
+      query_fields:
+      - name: page
+        value: '1'
+      - name: page_size
+        value: '500'
+      - name: name
+        value: '{$RABBITMQ.QUEUE.MATCH}'
+      - name: use_regex
+        value: 'true'
+      - name: columns
+        value: 'name,consumers,messages'
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: 850ccff7856b4883a56c926712fea36d
+      name: 'RabbitMQ: nodes total'
+      type: DEPENDENT
+      key: rabbitmq.nodes.total
+      delay: '0'
+      history: 31d
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'return JSON.parse(value).length;'
+      master_item:
+        key: rabbitmq.nodes.raw
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: 30130d935c23476487c1182966f7ee73
+      name: 'RabbitMQ: nodes running'
+      type: DEPENDENT
+      key: rabbitmq.nodes.running
+      delay: '0'
+      history: 31d
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+            var a = JSON.parse(value), n = 0;
+            for (var i = 0; i < a.length; i++) { if (a[i].running) { n++; } }
+            return n;
+      master_item:
+        key: rabbitmq.nodes.raw
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: b06586f8359c49179aac6448c79febee
+      name: 'RabbitMQ: network partitions'
+      type: DEPENDENT
+      key: rabbitmq.partitions
+      delay: '0'
+      history: 31d
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+            var a = JSON.parse(value), n = 0;
+            for (var i = 0; i < a.length; i++) { n += (a[i].partitions || []).length; }
+            return n;
+      master_item:
+        key: rabbitmq.nodes.raw
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: 2ec54e6e76b34ae094b71ff5cfec2e15
+      name: 'RabbitMQ: messages'
+      type: DEPENDENT
+      key: rabbitmq.messages
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.queue_totals.messages
+      master_item:
+        key: rabbitmq.overview.raw
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: 4f749c275fb54de69280d659cc5afc19
+      name: 'RabbitMQ: messages unacknowledged'
+      type: DEPENDENT
+      key: rabbitmq.messages_unacked
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.queue_totals.messages_unacknowledged
+      master_item:
+        key: rabbitmq.overview.raw
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: 3418a9c86a724d3e913152316bf5ed31
+      name: 'RabbitMQ: connections'
+      type: DEPENDENT
+      key: rabbitmq.connections
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.object_totals.connections
+      master_item:
+        key: rabbitmq.overview.raw
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: 02c11795564c4860b211e9bcb07b8a09
+      name: 'RabbitMQ: consumers'
+      type: DEPENDENT
+      key: rabbitmq.consumers
+      delay: '0'
+      history: 31d
+      value_type: FLOAT
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.object_totals.consumers
+      master_item:
+        key: rabbitmq.overview.raw
+      tags:
+      - tag: service
+        value: rabbitmq
+      - tag: layer
+        value: L4
+      - tag: component
+        value: rabbitmq
+    - uuid: 81b2e4497238460287d23f181327836d
+      name: 'keepalived: controllers holding the internal VIP'
+      type: CALCULATED
+      key: os.vip.holders[internal]
+      delay: 1m
+      history: 31d
+      params: 'sum(last_foreach(/*/os.vip.present[internal]?[group="{$OS_CTL.GROUP}"]))'
+      description: Not supported when no controller has the VIP macro set (then not checked).
+      tags:
+      - tag: service
+        value: keepalived
+      - tag: layer
+        value: L4
+      - tag: component
+        value: vip
+    - uuid: 1fb889a97857402180db6f5e19946c5a
+      name: 'keepalived: controllers holding the external VIP'
+      type: CALCULATED
+      key: os.vip.holders[external]
+      delay: 1m
+      history: 31d
+      params: 'sum(last_foreach(/*/os.vip.present[external]?[group="{$OS_CTL.GROUP}"]))'
+      description: Not supported when no controller has the VIP macro set (then not checked).
+      tags:
+      - tag: service
+        value: keepalived
+      - tag: layer
+        value: L4
+      - tag: component
+        value: vip
+    - uuid: 94ea5bb526a64fa2a2ede42fe7eb43f0
+      name: 'HAProxy: stats CSV (raw)'
+      type: HTTP_AGENT
+      key: haproxy.stats.raw
+      delay: '{$HAPROXY.INTERVAL}'
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      url: '{$HAPROXY.STATS.URL}'
+      authtype: BASIC
+      username: '{$HAPROXY.USERNAME}'
+      password: '{$HAPROXY.PASSWORD}'
+      timeout: 10s
+      tags:
+      - tag: service
+        value: haproxy
+      - tag: layer
+        value: L4
+      - tag: component
+        value: haproxy
+    - uuid: 2d6452aebce04137ad313176d7cede13
+      name: 'HAProxy: parsed stats (JSON)'
+      type: DEPENDENT
+      key: haproxy.stats.json
+      delay: '0'
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+            var lines = value.split('\n'), hdr = [], backends = [], servers = [];
+            for (var i = 0; i < lines.length; i++) {
+              var ln = lines[i].replace(/\r$/, '');
+              if (!ln) { continue; }
+              if (ln.charAt(0) === '#') { hdr = ln.slice(2).split(','); continue; }
+              var cols = ln.split(','), o = {};
+              for (var j = 0; j < hdr.length; j++) { if (hdr[j]) { o[hdr[j]] = cols[j] || ''; } }
+              if (!o.pxname || o.pxname === 'stats' || o.pxname === 'haproxy_stats') { continue; }
+              var st = (o.status || '').toUpperCase();
+              if (o.svname === 'BACKEND') {
+                var slim = parseInt(o.slim || '0', 10), scur = parseInt(o.scur || '0', 10);
+                backends.push({pxname: o.pxname, state: st === 'UP' ? 1 : 0,
+                  act: parseInt(o.act || '0', 10), scur: scur,
+                  spct: slim > 0 ? Math.round(scur * 10000 / slim) / 100 : 0});
+              } else if (o.svname && o.svname !== 'FRONTEND') {
+                var up = (st.indexOf('UP') === 0 || st === 'NO CHECK' || st.indexOf('MAINT') === 0) ? 1 : 0;
+                servers.push({id: o.pxname + '/' + o.svname, pxname: o.pxname, svname: o.svname,
+                  state: up, status: o.status || ''});
+              }
+            }
+            return JSON.stringify({backends: backends, servers: servers});
+      master_item:
+        key: haproxy.stats.raw
+      tags:
+      - tag: service
+        value: haproxy
+      - tag: layer
+        value: L4
+      - tag: component
+        value: haproxy
+    discovery_rules:
+    - uuid: a44d107927844b89907ec1e652cfa64d
+      name: RabbitMQ nodes
+      type: DEPENDENT
+      key: rabbitmq.nodes.discovery
+      delay: '0'
+      lifetime: 7d
+      item_prototypes:
+      - uuid: 4bddae2ccade4f319b2d8c987f767581
+        name: 'RabbitMQ {#NODE}: running'
+        type: DEPENDENT
+        key: 'rabbitmq.node.running["{#NODE}"]'
+        delay: '0'
+        history: 31d
+        valuemap:
+          name: Service state
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$[?(@.name==''{#NODE}'')].running.first()'
+        - type: JAVASCRIPT
+          parameters:
+          - 'return (value === ''true'' || value === true || value === ''ON'' || value === ''1'') ? 1 : 0;'
+        master_item:
+          key: rabbitmq.nodes.raw
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: component
+          value: rabbitmq
+        - tag: node
+          value: '{#NODE}'
+      - uuid: 7415f1f35d054c84bb5f1681a3fc1cce
+        name: 'RabbitMQ {#NODE}: memory alarm'
+        type: DEPENDENT
+        key: 'rabbitmq.node.mem_alarm["{#NODE}"]'
+        delay: '0'
+        history: 31d
+        valuemap:
+          name: Yes/No
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$[?(@.name==''{#NODE}'')].mem_alarm.first()'
+        - type: JAVASCRIPT
+          parameters:
+          - 'return (value === ''true'' || value === true || value === ''ON'' || value === ''1'') ? 1 : 0;'
+        master_item:
+          key: rabbitmq.nodes.raw
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: component
+          value: rabbitmq
+        - tag: node
+          value: '{#NODE}'
+      - uuid: 93c5af0168214409b80d5e5e53538e26
+        name: 'RabbitMQ {#NODE}: disk alarm'
+        type: DEPENDENT
+        key: 'rabbitmq.node.disk_alarm["{#NODE}"]'
+        delay: '0'
+        history: 31d
+        valuemap:
+          name: Yes/No
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$[?(@.name==''{#NODE}'')].disk_free_alarm.first()'
+        - type: JAVASCRIPT
+          parameters:
+          - 'return (value === ''true'' || value === true || value === ''ON'' || value === ''1'') ? 1 : 0;'
+        master_item:
+          key: rabbitmq.nodes.raw
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: component
+          value: rabbitmq
+        - tag: node
+          value: '{#NODE}'
+      - uuid: 1dbb603b04d849eebdb98f2801950ec7
+        name: 'RabbitMQ {#NODE}: file descriptors used'
+        type: DEPENDENT
+        key: 'rabbitmq.node.fd_pct["{#NODE}"]'
+        delay: '0'
+        history: 31d
+        value_type: FLOAT
+        units: '%'
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$[?(@.name==''{#NODE}'')].first()'
+        - type: JAVASCRIPT
+          parameters:
+          - |-
+              var o = JSON.parse(value);
+              return o.fd_total ? 100 * o.fd_used / o.fd_total : 0;
+        master_item:
+          key: rabbitmq.nodes.raw
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: component
+          value: rabbitmq
+        - tag: node
+          value: '{#NODE}'
+      - uuid: a77c97724d844cf4acc56f73c57e86de
+        name: 'RabbitMQ {#NODE}: sockets used'
+        type: DEPENDENT
+        key: 'rabbitmq.node.sockets_pct["{#NODE}"]'
+        delay: '0'
+        history: 31d
+        value_type: FLOAT
+        units: '%'
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$[?(@.name==''{#NODE}'')].first()'
+        - type: JAVASCRIPT
+          parameters:
+          - |-
+              var o = JSON.parse(value);
+              return o.sockets_total ? 100 * o.sockets_used / o.sockets_total : 0;
+        master_item:
+          key: rabbitmq.nodes.raw
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: component
+          value: rabbitmq
+        - tag: node
+          value: '{#NODE}'
+      trigger_prototypes:
+      - uuid: e66c7bc1d6a3491cbd6118a3e32ddd8a
+        expression: 'count(/OS-Deps-Cluster/rabbitmq.node.running["{#NODE}"],#5,"eq","0")>=5'
+        name: RabbitMQ node {#NODE} is not running
+        priority: HIGH
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: 'last(/OS-Deps-Cluster/rabbitmq.node.running["{#NODE}"])=1'
+        dependencies:
+        - name: RabbitMQ management API not answering via the VIP
+          expression: 'nodata(/OS-Deps-Cluster/rabbitmq.nodes.total,{$RABBITMQ.NODATA})=1'
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: impact
+          value: stability
+        - tag: component
+          value: rabbitmq
+        - tag: node
+          value: '{#NODE}'
+      - uuid: ef28787d3c044041a8ca09cde5034cb1
+        expression: 'min(/OS-Deps-Cluster/rabbitmq.node.mem_alarm["{#NODE}"],#5)=1 or min(/OS-Deps-Cluster/rabbitmq.node.disk_alarm["{#NODE}"],#5)=1'
+        name: 'RabbitMQ node {#NODE}: memory or disk alarm - publishers blocked'
+        priority: HIGH
+        description: 'RabbitMQ blocks every publisher connected to this node for 5m: RPC calls hang.'
+        dependencies:
+        - name: RabbitMQ management API not answering via the VIP
+          expression: 'nodata(/OS-Deps-Cluster/rabbitmq.nodes.total,{$RABBITMQ.NODATA})=1'
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: impact
+          value: availability
+        - tag: component
+          value: rabbitmq
+        - tag: node
+          value: '{#NODE}'
+      - uuid: dbafa064a61b43caabc657019139fca6
+        expression: 'last(/OS-Deps-Cluster/rabbitmq.node.fd_pct["{#NODE}"])>{$RABBITMQ.FD.WARN}'
+        name: 'RabbitMQ node {#NODE}: file descriptors above {$RABBITMQ.FD.WARN}%'
+        priority: WARNING
+        dependencies:
+        - name: RabbitMQ node {#NODE} is not running
+          expression: 'count(/OS-Deps-Cluster/rabbitmq.node.running["{#NODE}"],#5,"eq","0")>=5'
+          recovery_expression: 'last(/OS-Deps-Cluster/rabbitmq.node.running["{#NODE}"])=1'
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: impact
+          value: capacity
+        - tag: component
+          value: rabbitmq
+        - tag: node
+          value: '{#NODE}'
+      - uuid: a7b52db5ee86474cad950400b01558b3
+        expression: 'last(/OS-Deps-Cluster/rabbitmq.node.sockets_pct["{#NODE}"])>{$RABBITMQ.FD.WARN}'
+        name: 'RabbitMQ node {#NODE}: sockets above {$RABBITMQ.FD.WARN}%'
+        priority: WARNING
+        dependencies:
+        - name: RabbitMQ node {#NODE} is not running
+          expression: 'count(/OS-Deps-Cluster/rabbitmq.node.running["{#NODE}"],#5,"eq","0")>=5'
+          recovery_expression: 'last(/OS-Deps-Cluster/rabbitmq.node.running["{#NODE}"])=1'
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: impact
+          value: capacity
+        - tag: component
+          value: rabbitmq
+        - tag: node
+          value: '{#NODE}'
+      master_item:
+        key: rabbitmq.nodes.raw
+      lld_macro_paths:
+      - lld_macro: '{#NODE}'
+        path: $.name
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+            var a = JSON.parse(value), out = [];
+            for (var i = 0; i < a.length; i++) {
+              out.push({name: a[i].name});
+            }
+            return JSON.stringify(out);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+    - uuid: 6154380d119a4a4eb37853b359560c24
+      name: RabbitMQ OpenStack queues
+      type: DEPENDENT
+      key: rabbitmq.queues.discovery
+      delay: '0'
+      lifetime: 7d
+      description: Only queues matching {$RABBITMQ.QUEUE.MATCH} (filtered by the API).
+      item_prototypes:
+      - uuid: cd0dd7ba77784c00af77114d11811d5b
+        name: 'RabbitMQ queue {#QUEUE}: consumers'
+        type: DEPENDENT
+        key: 'rabbitmq.queue.consumers["{#QUEUE}"]'
+        delay: '0'
+        history: 31d
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$.items[?(@.name==''{#QUEUE}'')].consumers.first()'
+        master_item:
+          key: rabbitmq.queues.raw
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: component
+          value: '{#QUEUE}'
+      - uuid: 39e935c0d386487380b67f400fc31b2b
+        name: 'RabbitMQ queue {#QUEUE}: messages'
+        type: DEPENDENT
+        key: 'rabbitmq.queue.messages["{#QUEUE}"]'
+        delay: '0'
+        history: 31d
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$.items[?(@.name==''{#QUEUE}'')].messages.first()'
+        master_item:
+          key: rabbitmq.queues.raw
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: component
+          value: '{#QUEUE}'
+      trigger_prototypes:
+      - uuid: 579b5bb237cd4b07b30c3e1ce0d65dd5
+        expression: 'max(/OS-Deps-Cluster/rabbitmq.queue.consumers["{#QUEUE}"],#5)=0'
+        name: RabbitMQ queue {#QUEUE} has no consumers
+        priority: HIGH
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: 'last(/OS-Deps-Cluster/rabbitmq.queue.consumers["{#QUEUE}"])>0'
+        description: 'Nothing reads this RPC queue for 5m: every worker of that service is down or disconnected (e.g. all nova-conductor, cinder-scheduler, heat-engine).'
+        dependencies:
+        - name: RabbitMQ management API not answering via the VIP
+          expression: 'nodata(/OS-Deps-Cluster/rabbitmq.nodes.total,{$RABBITMQ.NODATA})=1'
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: impact
+          value: availability
+        - tag: component
+          value: '{#QUEUE}'
+      - uuid: 42c7af8dc56c4cb0a38fceb5b80d090b
+        expression: 'min(/OS-Deps-Cluster/rabbitmq.queue.messages["{#QUEUE}"],#3)>{$RABBITMQ.QUEUE.MSG.WARN:"{#QUEUE}"}'
+        name: 'RabbitMQ queue {#QUEUE}: {ITEM.VALUE} messages waiting'
+        priority: WARNING
+        description: Consumers are slower than producers.
+        dependencies:
+        - name: RabbitMQ management API not answering via the VIP
+          expression: 'nodata(/OS-Deps-Cluster/rabbitmq.nodes.total,{$RABBITMQ.NODATA})=1'
+        tags:
+        - tag: service
+          value: rabbitmq
+        - tag: layer
+          value: L4
+        - tag: impact
+          value: stability
+        - tag: component
+          value: '{#QUEUE}'
+      master_item:
+        key: rabbitmq.queues.raw
+      lld_macro_paths:
+      - lld_macro: '{#QUEUE}'
+        path: $.name
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.items
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+            var a = JSON.parse(value), out = [];
+            for (var i = 0; i < a.length; i++) {
+              out.push({name: a[i].name});
+            }
+            return JSON.stringify(out);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+    - uuid: bae9b35f053d4f33baaf9f8c690dc2f7
+      name: HAProxy backends
+      type: DEPENDENT
+      key: haproxy.backends.discovery
+      delay: '0'
+      lifetime: 7d
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#PXNAME}'
+          value: '{$HAPROXY.BACKEND.MATCHES}'
+          formulaid: A
+        - macro: '{#PXNAME}'
+          value: '{$HAPROXY.BACKEND.NOT_MATCHES}'
+          operator: NOT_MATCHES_REGEX
+          formulaid: B
+      item_prototypes:
+      - uuid: c6e15eb301b4450aa9ea3570fe5fb7dd
+        name: 'HAProxy backend {#PXNAME}: state'
+        type: DEPENDENT
+        key: 'haproxy.backend.state["{#PXNAME}"]'
+        delay: '0'
+        history: 31d
+        valuemap:
+          name: Service state
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$.backends[?(@.pxname==''{#PXNAME}'')].state.first()'
+        master_item:
+          key: haproxy.stats.json
+        tags:
+        - tag: service
+          value: haproxy
+        - tag: layer
+          value: L4
+        - tag: component
+          value: '{#PXNAME}'
+      - uuid: 12cb8b38779849678b895d24d2d0ab5c
+        name: 'HAProxy backend {#PXNAME}: active servers'
+        type: DEPENDENT
+        key: 'haproxy.backend.act["{#PXNAME}"]'
+        delay: '0'
+        history: 31d
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$.backends[?(@.pxname==''{#PXNAME}'')].act.first()'
+        master_item:
+          key: haproxy.stats.json
+        tags:
+        - tag: service
+          value: haproxy
+        - tag: layer
+          value: L4
+        - tag: component
+          value: '{#PXNAME}'
+      - uuid: aa72271123f4489ba4957f4cbd35cb14
+        name: 'HAProxy backend {#PXNAME}: session usage'
+        type: DEPENDENT
+        key: 'haproxy.backend.spct["{#PXNAME}"]'
+        delay: '0'
+        history: 31d
+        value_type: FLOAT
+        units: '%'
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$.backends[?(@.pxname==''{#PXNAME}'')].spct.first()'
+        master_item:
+          key: haproxy.stats.json
+        tags:
+        - tag: service
+          value: haproxy
+        - tag: layer
+          value: L4
+        - tag: component
+          value: '{#PXNAME}'
+      trigger_prototypes:
+      - uuid: f27e4da16f614a9eb91d9d97f63229c8
+        expression: 'count(/OS-Deps-Cluster/haproxy.backend.state["{#PXNAME}"],#5,"eq","0")>=5'
+        name: HAProxy backend {#PXNAME} is DOWN (no active servers)
+        priority: DISASTER
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: 'last(/OS-Deps-Cluster/haproxy.backend.state["{#PXNAME}"])=1'
+        description: 'Every server in this HAProxy backend is down: requests to the VIP fail with 503.'
+        tags:
+        - tag: service
+          value: haproxy
+        - tag: layer
+          value: L4
+        - tag: impact
+          value: availability
+        - tag: component
+          value: '{#PXNAME}'
+      - uuid: 666378022c334d8ebef07a6601679128
+        expression: 'min(/OS-Deps-Cluster/haproxy.backend.spct["{#PXNAME}"],#3)>{$HAPROXY.SESS.WARN}'
+        name: 'HAProxy backend {#PXNAME}: session usage above {$HAPROXY.SESS.WARN}%'
+        priority: WARNING
+        opdata: '{ITEM.LASTVALUE}'
+        dependencies:
+        - name: HAProxy backend {#PXNAME} is DOWN (no active servers)
+          expression: 'count(/OS-Deps-Cluster/haproxy.backend.state["{#PXNAME}"],#5,"eq","0")>=5'
+          recovery_expression: 'last(/OS-Deps-Cluster/haproxy.backend.state["{#PXNAME}"])=1'
+        tags:
+        - tag: service
+          value: haproxy
+        - tag: layer
+          value: L4
+        - tag: impact
+          value: capacity
+        - tag: component
+          value: '{#PXNAME}'
+      master_item:
+        key: haproxy.stats.json
+      lld_macro_paths:
+      - lld_macro: '{#PXNAME}'
+        path: $.pxname
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.backends
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+            var a = JSON.parse(value), out = [];
+            for (var i = 0; i < a.length; i++) {
+              out.push({pxname: a[i].pxname});
+            }
+            return JSON.stringify(out);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+    - uuid: ea83fffc90aa4520add0cb61c1566755
+      name: HAProxy backend servers
+      type: DEPENDENT
+      key: haproxy.servers.discovery
+      delay: '0'
+      lifetime: 7d
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#PXNAME}'
+          value: '{$HAPROXY.BACKEND.MATCHES}'
+          formulaid: A
+        - macro: '{#PXNAME}'
+          value: '{$HAPROXY.BACKEND.NOT_MATCHES}'
+          operator: NOT_MATCHES_REGEX
+          formulaid: B
+        - macro: '{#SVNAME}'
+          value: '{$HAPROXY.SERVER.NOT_MATCHES}'
+          operator: NOT_MATCHES_REGEX
+          formulaid: C
+      item_prototypes:
+      - uuid: db7e4afcab2745559750553a246984e0
+        name: 'HAProxy {#PXNAME}/{#SVNAME}: state'
+        type: DEPENDENT
+        key: 'haproxy.server.state["{#ID}"]'
+        delay: '0'
+        history: 31d
+        valuemap:
+          name: Service state
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - '$.servers[?(@.id==''{#ID}'')].state.first()'
+        master_item:
+          key: haproxy.stats.json
+        tags:
+        - tag: service
+          value: haproxy
+        - tag: layer
+          value: L4
+        - tag: component
+          value: '{#PXNAME}'
+        - tag: node
+          value: '{#SVNAME}'
+      trigger_prototypes:
+      - uuid: 84f20ad21bd04fe6a5c563d331552330
+        expression: 'count(/OS-Deps-Cluster/haproxy.server.state["{#ID}"],#5,"eq","0")>=5'
+        name: 'HAProxy {#PXNAME}: server {#SVNAME} is DOWN'
+        priority: WARNING
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: 'last(/OS-Deps-Cluster/haproxy.server.state["{#ID}"])=1'
+        description: 'One backend server failed its HAProxy health check; other servers still take traffic.'
+        tags:
+        - tag: service
+          value: haproxy
+        - tag: layer
+          value: L4
+        - tag: impact
+          value: stability
+        - tag: component
+          value: '{#PXNAME}'
+        - tag: node
+          value: '{#SVNAME}'
+      master_item:
+        key: haproxy.stats.json
+      lld_macro_paths:
+      - lld_macro: '{#ID}'
+        path: $.id
+      - lld_macro: '{#PXNAME}'
+        path: $.pxname
+      - lld_macro: '{#SVNAME}'
+        path: $.svname
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.servers
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+            var a = JSON.parse(value), out = [];
+            for (var i = 0; i < a.length; i++) {
+              out.push({id: a[i].id, pxname: a[i].pxname, svname: a[i].svname});
+            }
+            return JSON.stringify(out);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+    macros:
+    - macro: '{$HAPROXY.BACKEND.MATCHES}'
+      value: .*
+      description: Regex of HAProxy backends to discover.
+    - macro: '{$HAPROXY.BACKEND.NOT_MATCHES}'
+      value: (?i)(^$|_cell_kkn_|_kkn_back$|^kkn_)
+      description: 'Regex of HAProxy backends to skip (e.g. unprovisioned AZs/cells like kkn).'
+    - macro: '{$HAPROXY.INTERVAL}'
+      value: 1m
+      description: HAProxy stats poll interval.
+    - macro: '{$HAPROXY.PASSWORD}'
+      type: SECRET_TEXT
+      description: HAProxy stats password (haproxy_stats_password in passwords.yml). Secret text.
+    - macro: '{$HAPROXY.SERVER.NOT_MATCHES}'
+      value: (?i)(^$|^kkn-|_kkn_)
+      description: 'Regex of HAProxy backend servers to skip (e.g. unprovisioned AZs/nodes).'
+    - macro: '{$HAPROXY.SESS.WARN}'
+      value: '80'
+      description: 'HAProxy backend session usage warning, %.'
+    - macro: '{$HAPROXY.STATS.URL}'
+      value: 'http://INTERNAL-VIP:1984/;csv'
+      description: HAProxy stats CSV URL (Kolla uses port 1984).
+    - macro: '{$HAPROXY.USERNAME}'
+      value: stats
+      description: 'HAProxy stats basic-auth username (Kolla default: stats).'
+    - macro: '{$OS_CTL.GROUP}'
+      value: OpenStack/CHANGE-ME/Controllers
+      description: 'Host group of this AZ''s controllers (linked to OS-Deps-Node). Used by the VIP sum.'
+    - macro: '{$RABBITMQ.API.URL}'
+      value: http://INTERNAL-VIP:15672
+      description: RabbitMQ management API via the internal VIP.
+    - macro: '{$RABBITMQ.FD.WARN}'
+      value: '80'
+      description: 'File descriptor / socket warning, %.'
+    - macro: '{$RABBITMQ.INTERVAL}'
+      value: 1m
+      description: Poll interval of the 3 API calls.
+    - macro: '{$RABBITMQ.NODATA}'
+      value: 5m
+      description: nodata() window for the management API.
+    - macro: '{$RABBITMQ.PASSWORD}'
+      type: SECRET_TEXT
+      description: Secret text.
+    - macro: '{$RABBITMQ.QUEUE.MATCH}'
+      value: ^(conductor|scheduler|cinder-scheduler|cinder-volume|cinder-backup|engine|magnum-conductor|octavia_prov|trove-conductor|trove-taskmanager|manila-scheduler|manila-share)$
+      description: Regex of OpenStack RPC queues to watch (server-side filter).
+    - macro: '{$RABBITMQ.QUEUE.MSG.WARN}'
+      value: '1000'
+      description: Messages waiting warning. Context = queue name.
+    - macro: '{$RABBITMQ.UNACKED.WARN}'
+      value: '500'
+      description: Cluster-wide unacknowledged messages warning.
+    - macro: '{$RABBITMQ.USERNAME}'
+      value: zbx_monitor
+      description: User with the monitoring tag.
+    - macro: '{$RABBITMQ.VHOST}'
+      value: '%2F'
+      description: URL-encoded vhost. Kolla uses /.
+    valuemaps:
+    - uuid: 23946e2a36e140c3bf818fff50977c53
+      name: Service state
+      mappings:
+      - value: '0'
+        newvalue: Down
+      - value: '1'
+        newvalue: Up
+    - uuid: 0b6e616621f94693968f276d71bd02b7
+      name: Yes/No
+      mappings:
+      - value: '0'
+        newvalue: 'No'
+      - value: '1'
+        newvalue: 'Yes'
+  - uuid: adc24a13717d4dc3bc29cf9a215fed56
+    template: OS-Host
+    name: OS-Host
+    description: |-
+      Minimal host checks for OpenStack controllers and computes (Zabbix agent, passive).
+      Clock, file systems, agent availability. Docker containers (L1) are out of scope by decision.
+      
+      Disk uses vfs.fs.discovery instead of fixed paths: /var/lib/docker is mode 710 root, so the agent
+      cannot stat paths below it. MariaDB / RabbitMQ data live in docker volumes on whichever file
+      system holds /var/lib/docker - that file system is discovered and alarmed.
+    groups:
+    - name: Templates/OpenStack
+    items:
+    - uuid: f86ed367cfd545f1bc6745c5668e7995
+      name: 'Zabbix agent: ping'
+      key: agent.ping
+      delay: 1m
+      history: 31d
+      valuemap:
+        name: Yes/No
+      tags:
+      - tag: service
+        value: host
+      - tag: component
+        value: agent
+    - uuid: 98a6824a33e24a3da80b533283f6fdbf
+      name: 'System: local time'
+      key: system.localtime
+      delay: 1m
+      history: 31d
+      units: unixtime
+      tags:
+      - tag: service
+        value: chrony
+      - tag: component
+        value: clock
+    - uuid: c246f85879494e76bb9c6097df41aad3
+      name: 'File systems: /proc/mounts (raw)'
+      key: vfs.file.contents[/proc/mounts]
+      delay: 1m
+      history: '0'
+      trends: '0'
+      value_type: TEXT
+      tags:
+      - tag: service
+        value: host
+      - tag: component
+        value: disk
+    discovery_rules:
+    - uuid: f03c6eaace0d452f8a9fab50ceaf54a0
+      name: File systems
+      key: vfs.fs.discovery
+      delay: 1h
+      lifetime: 7d
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#FSTYPE}'
+          value: '{$VFS.FSTYPE.MATCHES}'
+          formulaid: A
+        - macro: '{#FSNAME}'
+          value: '{$VFS.FSNAME.NOT_MATCHES}'
+          operator: NOT_MATCHES_REGEX
+          formulaid: B
+      item_prototypes:
+      - uuid: 1e7267a3d3a545e99250b3abd728511e
+        name: '{#FSNAME}: space used'
+        key: 'vfs.fs.size[{#FSNAME},pused]'
+        delay: 5m
+        history: 31d
+        value_type: FLOAT
+        units: '%'
+        tags:
+        - tag: service
+          value: host
+        - tag: component
+          value: disk
+        - tag: fs
+          value: '{#FSNAME}'
+      - uuid: 2586cb3de5c340668fe25cd87aebbbb5
+        name: '{#FSNAME}: total space'
+        key: 'vfs.fs.size[{#FSNAME},total]'
+        delay: 1h
+        history: 31d
+        units: B
+        tags:
+        - tag: service
+          value: host
+        - tag: component
+          value: disk
+        - tag: fs
+          value: '{#FSNAME}'
+      - uuid: 947413da6d5b42e58772984b964af85c
+        name: '{#FSNAME}: read-only'
+        type: DEPENDENT
+        key: vfs.fs.readonly[{#FSNAME}]
+        delay: '0'
+        history: 31d
+        description: '1 = mounted read-only (ro in /proc/mounts), usually after an I/O error.'
+        valuemap:
+          name: Yes/No
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - |-
+              var mp = '{#FSNAME}', lines = value.split('\n');
+              for (var i = 0; i < lines.length; i++) {
+                var p = lines[i].split(' ');
+                if (p[1] === mp && p[3]) {
+                  var opts = p[3].split(',');
+                  for (var j = 0; j < opts.length; j++) { if (opts[j] === 'ro') { return 1; } }
+                  return 0;
+                }
+              }
+              return 0;
+        master_item:
+          key: vfs.file.contents[/proc/mounts]
+        tags:
+        - tag: service
+          value: host
+        - tag: component
+          value: disk
+        - tag: fs
+          value: '{#FSNAME}'
+      trigger_prototypes:
+      - uuid: e0fa094a40694db4b002be2ed59328d2
+        expression: 'last(/OS-Host/vfs.fs.size[{#FSNAME},pused])>{$VFS.PUSED.HIGH}'
+        name: '{HOST.NAME}: {#FSNAME} above {$VFS.PUSED.HIGH}% used'
+        priority: HIGH
+        opdata: '{ITEM.LASTVALUE}'
+        tags:
+        - tag: service
+          value: host
+        - tag: impact
+          value: capacity
+        - tag: component
+          value: '{#FSNAME}'
+        - tag: node
+          value: '{HOST.NAME}'
+      - uuid: fe6a399d0a4a4a0793c5043e58205639
+        expression: 'last(/OS-Host/vfs.fs.size[{#FSNAME},pused])>{$VFS.PUSED.WARN}'
+        name: '{HOST.NAME}: {#FSNAME} above {$VFS.PUSED.WARN}% used'
+        priority: WARNING
+        opdata: '{ITEM.LASTVALUE}'
+        dependencies:
+        - name: '{HOST.NAME}: {#FSNAME} above {$VFS.PUSED.HIGH}% used'
+          expression: 'last(/OS-Host/vfs.fs.size[{#FSNAME},pused])>{$VFS.PUSED.HIGH}'
+        tags:
+        - tag: service
+          value: host
+        - tag: impact
+          value: capacity
+        - tag: component
+          value: '{#FSNAME}'
+        - tag: node
+          value: '{HOST.NAME}'
+      - uuid: e339ca0dfb3d48d9ae75e7d525284e8c
+        expression: last(/OS-Host/vfs.fs.readonly[{#FSNAME}])=1
+        name: '{HOST.NAME}: {#FSNAME} is mounted read-only'
+        priority: HIGH
+        description: 'Filesystem remounted read-only (disk or storage I/O error): containers and VMs on this mount cannot write.'
+        tags:
+        - tag: service
+          value: host
+        - tag: impact
+          value: stability
+        - tag: component
+          value: '{#FSNAME}'
+        - tag: node
+          value: '{HOST.NAME}'
+    macros:
+    - macro: '{$AGENT.NODATA}'
+      value: 5m
+      description: agent.ping nodata window.
+    - macro: '{$TIME.MAX.DIFF}'
+      value: '60'
+      description: 'Allowed clock difference with the Zabbix server, seconds.'
+    - macro: '{$VFS.FSNAME.NOT_MATCHES}'
+      value: ^(/dev|/sys|/run|/proc|/boot/efi|/var/lib/docker/.+|/snap/.+)
+      description: 'Mount points to skip (container overlays, pseudo file systems).'
+    - macro: '{$VFS.FSTYPE.MATCHES}'
+      value: ^(ext4|xfs|btrfs|zfs)$
+      description: File system types to discover.
+    - macro: '{$VFS.PUSED.HIGH}'
+      value: '90'
+      description: 'File system used, % - High.'
+    - macro: '{$VFS.PUSED.WARN}'
+      value: '80'
+      description: 'File system used, % - Warning.'
+    valuemaps:
+    - uuid: 4dda1a73f52e46dbabf37e54f1c9635a
+      name: Yes/No
+      mappings:
+      - value: '0'
+        newvalue: 'No'
+      - value: '1'
+        newvalue: 'Yes'
+  - uuid: 883b9d49384944e88b4e1e7c1f58a98d
+    template: OS-Proxy-Watch
+    name: OS-Proxy-Watch
+    description: |-
+      Is the AZ proxy still sending data? Internal check - the host this
+      template is linked to MUST be monitored by the Zabbix server, not by the proxy it watches.
+      One host per proxy, or link it once per proxy with {$PROXY.NAME} set on each host.
+    groups:
+    - name: Templates/OpenStack
+    items:
+    - uuid: dd8c223684c14ab29e3cfed44352438c
+      name: 'Proxy {$PROXY.NAME}: last access'
+      type: INTERNAL
+      key: 'zabbix[proxy,{$PROXY.NAME},lastaccess]'
+      delay: 1m
+      history: 31d
+      units: unixtime
+      tags:
+      - tag: service
+        value: monitoring
+      - tag: component
+        value: proxy
+    macros:
+    - macro: '{$PROXY.LASTACCESS.MAX}'
+      value: '180'
+      description: Seconds without contact before alarming.
+    - macro: '{$PROXY.NAME}'
+      value: CHANGE-ME
+      description: Proxy name exactly as in Administration > Proxies.
+  triggers:
+  - uuid: e36533f9c0e941c796ea3e4fae8e0770
+    expression: 'max(/OS-Deps-Node/galera.size,#5)<=1'
+    name: 'Galera on {HOST.NAME}: cluster size {ITEM.VALUE}'
+    priority: DISASTER
+    dependencies:
+    - name: MariaDB on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"])=1'
+    tags:
+    - tag: service
+      value: mariadb
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: galera
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: c05b4a21974d432d9e71edb539a60820
+    expression: last(/OS-Deps-Node/galera.size)>1 and last(/OS-Deps-Node/galera.size)<{$GALERA.SIZE}
+    name: 'Galera on {HOST.NAME}: cluster size {ITEM.VALUE} of {$GALERA.SIZE}'
+    priority: HIGH
+    description: A node left the cluster - one more failure loses quorum.
+    dependencies:
+    - name: MariaDB on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"])=1'
+    tags:
+    - tag: service
+      value: mariadb
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: stability
+    - tag: component
+      value: galera
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 6c78b3bf30164c95b7e2322752f4d4b4
+    expression: 'min(/OS-Deps-Node/galera.flow_paused.ratio,#5)>{$GALERA.FLOW.WARN}'
+    name: 'Galera on {HOST.NAME}: flow control paused above {$GALERA.FLOW.WARN}'
+    priority: WARNING
+    opdata: '{ITEM.LASTVALUE}'
+    description: A slow node makes the whole cluster wait. Check disk latency on the slowest node.
+    dependencies:
+    - name: MariaDB on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"])=1'
+    tags:
+    - tag: service
+      value: mariadb
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: stability
+    - tag: component
+      value: galera
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 069223c02d1f4ab4802c22720a0282f5
+    expression: 'max(/OS-Deps-Node/galera.primary,#5)=0'
+    name: 'Galera on {HOST.NAME}: not in the Primary component'
+    priority: DISASTER
+    description: Non-Primary = this node refuses writes (split brain or quorum lost). On every node at once = the whole cloud cannot write to its DB.
+    dependencies:
+    - name: MariaDB on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"])=1'
+    tags:
+    - tag: service
+      value: mariadb
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: galera
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: e8809331cc6145b2b4509fb0a832be4e
+    expression: 'max(/OS-Deps-Node/galera.synced,#3)=0'
+    name: 'Galera on {HOST.NAME}: not synced ({ITEM.VALUE})'
+    priority: WARNING
+    dependencies:
+    - name: MariaDB on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"])=1'
+    tags:
+    - tag: service
+      value: mariadb
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: stability
+    - tag: component
+      value: galera
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 9e8ae93b01b445d890aaae6b0c584f7a
+    expression: 'min(/OS-Deps-Node/galera.recv_queue,#5)>{$GALERA.RECVQ.WARN}'
+    name: 'Galera on {HOST.NAME}: receive queue above {$GALERA.RECVQ.WARN}'
+    priority: WARNING
+    opdata: '{ITEM.LASTVALUE}'
+    dependencies:
+    - name: MariaDB on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"])=1'
+    tags:
+    - tag: service
+      value: mariadb
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: stability
+    - tag: component
+      value: galera
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 7a13a579ca6845ea845f6e8cf34dcb61
+    expression: 'max(/OS-Deps-Node/galera.ready,#5)=0'
+    name: 'Galera on {HOST.NAME}: wsrep not ready'
+    priority: HIGH
+    dependencies:
+    - name: MariaDB on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"])=1'
+    - name: 'Galera on {HOST.NAME}: not in the Primary component'
+      expression: 'max(/OS-Deps-Node/galera.primary,#5)=0'
+    tags:
+    - tag: service
+      value: mariadb
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: galera
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: b27c316946bb4b6c8a17b7014155b4f0
+    expression: 'count(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"],#5,"eq","0")>=5'
+    name: MariaDB on {HOST.NAME} is down
+    priority: HIGH
+    recovery_mode: RECOVERY_EXPRESSION
+    recovery_expression: 'last(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"])=1'
+    description: 'mysql.ping failed 5 rounds in a row (5m). One node down keeps the cluster up; the Services tree only degrades when 2 of 3 nodes have problems.'
+    tags:
+    - tag: service
+      value: mariadb
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: mysqld
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 4ec307c8511c48aeaae374f528124166
+    expression: last(/OS-Deps-Node/mysql.threads_connected)>{$MYSQL.MAX_CONN}*{$MYSQL.CONN.WARN}/100
+    name: 'MariaDB on {HOST.NAME}: connections above {$MYSQL.CONN.WARN}% of {$MYSQL.MAX_CONN}'
+    priority: WARNING
+    opdata: '{ITEM.LASTVALUE}'
+    dependencies:
+    - name: MariaDB on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/mysql.ping["tcp://{HOST.CONN}:{$MYSQL.PORT}","{$MYSQL.USER}","{$MYSQL.PASSWORD}"])=1'
+    tags:
+    - tag: service
+      value: mariadb
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: capacity
+    - tag: component
+      value: mysqld
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 94c7b9bcc2e34e029bc4be248303860a
+    expression: 'count(/OS-Deps-Node/net.udp.listen[{$OCTAVIA.HM.PORT}],#5,"eq","0")>=5'
+    name: Octavia health manager on {HOST.NAME} is not listening on UDP {$OCTAVIA.HM.PORT}
+    priority: HIGH
+    recovery_mode: RECOVERY_EXPRESSION
+    recovery_expression: last(/OS-Deps-Node/net.udp.listen[{$OCTAVIA.HM.PORT}])=1
+    description: 'No heartbeats are received here: amphorae look dead and get failed over.'
+    tags:
+    - tag: service
+      value: octavia
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: health-manager
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 39c879a95d8343448611538fb4580ca5
+    expression: 'nodata(/OS-Deps-Cluster/rabbitmq.nodes.total,{$RABBITMQ.NODATA})=1'
+    name: RabbitMQ management API not answering via the VIP
+    priority: HIGH
+    description: 'HAProxy routes 15672 to any live node, so no answer usually means no RabbitMQ node is up. Rule out a wrong {$RABBITMQ.PASSWORD} first (item error = 401).'
+    tags:
+    - tag: service
+      value: rabbitmq
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: rabbitmq
+  - uuid: d94421a58a7148dd8f2de8f68b89b399
+    expression: 'min(/OS-Deps-Cluster/rabbitmq.partitions,#5)>0'
+    name: 'RabbitMQ: network partition detected'
+    priority: DISASTER
+    description: 'Split brain: RPC between services is unreliable until the minority side restarts.'
+    dependencies:
+    - name: RabbitMQ management API not answering via the VIP
+      expression: 'nodata(/OS-Deps-Cluster/rabbitmq.nodes.total,{$RABBITMQ.NODATA})=1'
+    tags:
+    - tag: service
+      value: rabbitmq
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: rabbitmq
+  - uuid: 1d14ccfbf9c341979474ab34204808a5
+    expression: 'max(/OS-Deps-Cluster/rabbitmq.nodes.running,#5)*2<=last(/OS-Deps-Cluster/rabbitmq.nodes.total)'
+    name: 'RabbitMQ: only {ITEM.LASTVALUE1} of {ITEM.LASTVALUE2} nodes running'
+    priority: DISASTER
+    description: Half or fewer nodes running for 5m - quorum queues stop.
+    dependencies:
+    - name: RabbitMQ management API not answering via the VIP
+      expression: 'nodata(/OS-Deps-Cluster/rabbitmq.nodes.total,{$RABBITMQ.NODATA})=1'
+    tags:
+    - tag: service
+      value: rabbitmq
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: rabbitmq
+  - uuid: 25e7b87f66774ba3865e6f45392b8abb
+    expression: 'min(/OS-Deps-Cluster/rabbitmq.messages_unacked,#3)>{$RABBITMQ.UNACKED.WARN}'
+    name: 'RabbitMQ: {ITEM.VALUE} unacknowledged messages across the cluster'
+    priority: WARNING
+    opdata: '{ITEM.LASTVALUE}'
+    description: Workers are holding RPC messages without acknowledging them (stuck consumers or leaked reply/fanout queues).
+    dependencies:
+    - name: RabbitMQ management API not answering via the VIP
+      expression: 'nodata(/OS-Deps-Cluster/rabbitmq.nodes.total,{$RABBITMQ.NODATA})=1'
+    tags:
+    - tag: service
+      value: rabbitmq
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: stability
+    - tag: component
+      value: rabbitmq
+  - uuid: 98c1ba0dff6a4d66ab07790178c6e96e
+    expression: 'nodata(/OS-Host/agent.ping,{$AGENT.NODATA})=1'
+    name: Zabbix agent on {HOST.NAME} is unavailable
+    priority: HIGH
+    description: 'Host down, agent stopped, or the proxy cannot reach it. Every agent-based check on this host is blind.'
+    tags:
+    - tag: service
+      value: monitoring
+    - tag: impact
+      value: monitoring
+    - tag: component
+      value: agent
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 791c3c965eee4bd4a0e3b7067fa6c64c
+    expression: 'fuzzytime(/OS-Proxy-Watch/zabbix[proxy,{$PROXY.NAME},lastaccess],{$PROXY.LASTACCESS.MAX})=0'
+    name: Zabbix proxy {$PROXY.NAME} is not sending data
+    priority: HIGH
+    description: Every check of this AZ is stale (agent items and the os_probe trapper data). Not counted as downtime - the cloud may be fine.
+    tags:
+    - tag: service
+      value: monitoring
+    - tag: impact
+      value: monitoring
+    - tag: component
+      value: proxy
+  - uuid: c74c05af181a43d8b23923e923e9bd88
+    expression: 'max(/OS-Deps-Cluster/os.vip.holders[external],#5)=0'
+    name: 'keepalived: external VIP is on no controller'
+    priority: DISASTER
+    description: Every API behind this VIP is unreachable for 5m.
+    tags:
+    - tag: service
+      value: keepalived
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: vip-external
+  - uuid: 450c2ad027f54460ad9c22e76cbb70d9
+    expression: 'min(/OS-Deps-Cluster/os.vip.holders[external],#5)>1'
+    name: 'keepalived: external VIP is on {ITEM.VALUE} controllers (split brain)'
+    priority: HIGH
+    description: 'Two nodes answer ARP for the VIP for 5m: clients flap between them. Usually VRRP traffic blocked between controllers.'
+    tags:
+    - tag: service
+      value: keepalived
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: vip-external
+  - uuid: f0437ddd0f14409c839d538928b33d35
+    expression: 'max(/OS-Deps-Cluster/os.vip.holders[internal],#5)=0'
+    name: 'keepalived: internal VIP is on no controller'
+    priority: DISASTER
+    description: Every API behind this VIP is unreachable for 5m.
+    tags:
+    - tag: service
+      value: keepalived
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: vip-internal
+  - uuid: 3fd839cc1a924625baa100710e2065e2
+    expression: 'min(/OS-Deps-Cluster/os.vip.holders[internal],#5)>1'
+    name: 'keepalived: internal VIP is on {ITEM.VALUE} controllers (split brain)'
+    priority: HIGH
+    description: 'Two nodes answer ARP for the VIP for 5m: clients flap between them. Usually VRRP traffic blocked between controllers.'
+    tags:
+    - tag: service
+      value: keepalived
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: vip-internal
+  - uuid: 1084bcb072f648fe9e6f9a3d778f0302
+    expression: 'count(/OS-Deps-Node/memcached.ping["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"],#5,"eq","0")>=5'
+    name: memcached on {HOST.NAME} is down
+    priority: HIGH
+    recovery_mode: RECOVERY_EXPRESSION
+    recovery_expression: 'last(/OS-Deps-Node/memcached.ping["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"])=1'
+    description: Keystone token validation and Horizon sessions lose this cache node.
+    tags:
+    - tag: service
+      value: memcached
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: availability
+    - tag: component
+      value: memcached
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 7bb7caf4451c44ceb543ebb3ef1fa497
+    expression: last(/OS-Deps-Node/memcached.curr_connections)>last(/OS-Deps-Node/memcached.max_connections)*{$MEMCACHED.CONN.WARN}/100
+    name: 'memcached on {HOST.NAME}: connections above {$MEMCACHED.CONN.WARN}%'
+    priority: WARNING
+    dependencies:
+    - name: memcached on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/memcached.ping["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/memcached.ping["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"])=1'
+    tags:
+    - tag: service
+      value: memcached
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: capacity
+    - tag: component
+      value: memcached
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 2f3dfe33c12d4867a6f350aff3df5589
+    expression: 'last(/OS-Deps-Node/memcached.evictions)-last(/OS-Deps-Node/memcached.evictions,#2)>{$MEMCACHED.EVICT.MAX}'
+    name: 'memcached on {HOST.NAME}: evicting items'
+    priority: WARNING
+    description: Cache full - raise memcached_memory or expect slower token validation.
+    dependencies:
+    - name: memcached on {HOST.NAME} is down
+      expression: 'count(/OS-Deps-Node/memcached.ping["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"],#5,"eq","0")>=5'
+      recovery_expression: 'last(/OS-Deps-Node/memcached.ping["tcp://{HOST.CONN}:{$MEMCACHED.PORT}"])=1'
+    tags:
+    - tag: service
+      value: memcached
+    - tag: layer
+      value: L4
+    - tag: impact
+      value: stability
+    - tag: component
+      value: memcached
+    - tag: node
+      value: '{HOST.NAME}'
+  - uuid: 757b1d6de3034185b0822ded01d9578c
+    expression: 'fuzzytime(/OS-Host/system.localtime,{$TIME.MAX.DIFF})=0'
+    name: '{HOST.NAME}: clock off by more than {$TIME.MAX.DIFF}'
+    priority: WARNING
+    description: 'Compared with the Zabbix server clock. Galera, RabbitMQ and Keystone tokens break with clock skew - check chronyc tracking.'
+    tags:
+    - tag: service
+      value: chrony
+    - tag: impact
+      value: stability
+    - tag: component
+      value: clock
+    - tag: node
+      value: '{HOST.NAME}'

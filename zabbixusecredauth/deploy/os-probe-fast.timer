@@ -1,0 +1,11 @@
+[Unit]
+Description=OpenStack API probe for Zabbix (fast tier, every 2min)
+
+[Timer]
+OnCalendar=*:0/2:00
+AccuracySec=1s
+RandomizedDelaySec=15s
+Unit=os-probe@fast.service
+
+[Install]
+WantedBy=timers.target
