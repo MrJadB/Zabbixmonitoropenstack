@@ -133,8 +133,6 @@ LABELS = {
     'horizon': 'Horizon', 'opensdn': 'OpenSDN', 's3': 'S3', 'novnc': 'noVNC',
 }
 
-# OpenSDN analytics UVE types read in the mid tier (NodeStatus.process_status).
-# vrouter is opt-in (opensdn_vrouters = 1): one row per compute x module.
 OPENSDN_UVES = ('config-node', 'control-node', 'analytics-node', 'database-node',
                 'config-database-node')
 
@@ -152,10 +150,6 @@ FAST_L3 = [
 ]
 
 # ---- scope = project ----
-# Extra L3 functional probes: list one own resource per API a customer uses. Every
-# service in the catalog gets at least one, so each has an availability check even
-# with project_l2 = 0. With OpenSDN each Neutron resource type is a separate path
-# through the contrail plugin to the config API, so they are checked one by one.
 def _neutron_l3(check, res):
     q = '%s?limit=1&fields=id' % res
     return ('neutron', check, ['/v2.0/' + q, '/' + q], None, False)
@@ -165,15 +159,12 @@ PROJECT_FAST_L3 = [
     ('nova', 'servers', ['/servers?limit=1'], None, False),
     ('nova', 'flavors', ['/flavors?limit=1'], None, False),
     ('nova', 'keypairs', ['/os-keypairs?limit=1'], None, False),
-    # zoneState.available of every AZ is read into out['azs'] (project_azs)
     ('nova', 'availability_zones', ['/os-availability-zone'], None, False),
     ('cinder', 'availability_zones', ['/os-availability-zone'], None, False),
     ('cinder', 'volumes', ['/volumes?limit=1'], None, False),
     ('cinder', 'volume_types', ['/types'], None, False),
     ('cinder', 'snapshots', ['/snapshots?limit=1'], None, False),
     ('cinder', 'backups', ['/backups?limit=1'], None, False),
-    # answered by neutron-server itself (no OpenSDN config API behind it): still works
-    # for a reader role that the OpenSDN RBAC refuses on networks / ports / ...
     ('neutron', 'extensions', ['/v2.0/extensions', '/extensions'], None, False),
     _neutron_l3('subnets', 'subnets'),
     _neutron_l3('ports', 'ports'),
@@ -188,7 +179,6 @@ PROJECT_FAST_L3 = [
     ('trove', 'instances', ['/instances?limit=1'], None, False),
     ('barbican', 'secrets', ['/v1/secrets?limit=1', '/secrets?limit=1'], None, False),
     ('barbican', 'containers', ['/v1/containers?limit=1', '/containers?limit=1'], None, False),
-    # catalog URL is the account (.../v1/AUTH_<project>): list one container
     ('swift', 'account', ['?format=json&limit=1'], None, False),
     ('manila', 'shares', ['/shares?limit=1'], None, False),
     ('designate', 'zones', ['/v2/zones?limit=1', '/zones?limit=1'], None, False),
@@ -197,8 +187,7 @@ PROJECT_FAST_L3 = [
     ('aodh', 'alarms', ['/v2/alarms?limit=1'], None, False),
     ('gnocchi', 'resources', ['/v1/resource/generic?limit=1'], None, False),
 ]
-# Extra error / stuck counts that only make sense per project (same tuple shapes as
-# MID_COUNTS / MID_STATES). Cloud scope does not run them.
+
 PROJECT_MID_COUNTS = [
     ('designate', 'zones_error', ['/v2/zones?status=ERROR&limit={cap}',
                                   '/zones?status=ERROR&limit={cap}'], None, 'zones', None),
@@ -209,9 +198,6 @@ PROJECT_MID_COUNTS = [
       '/floatingips?status=ERROR&fields=id&limit={cap}'], None, 'floatingips', None),
     ('neutron', 'ports_error', ['/v2.0/ports?status=ERROR&fields=id&limit={cap}',
                                 '/ports?status=ERROR&fields=id&limit={cap}'], None, 'ports', None),
-    # load balancers that work but not fully (members down, health monitor failing),
-    # and pools / listeners whose config did not apply. OFFLINE also counts LBs an
-    # owner disabled on purpose: accept them with {$OS_RES.MAX:"octavia:lb_offline"}.
     ('octavia', 'lb_degraded', ['/v2/lbaas/loadbalancers?operating_status=DEGRADED&fields=id&limit={cap}',
                                 '/lbaas/loadbalancers?operating_status=DEGRADED&fields=id&limit={cap}'],
      None, 'loadbalancers', None),
@@ -228,7 +214,7 @@ PROJECT_MID_COUNTS = [
      ['/v2/lbaas/listeners?provisioning_status=ERROR&fields=id&limit={cap}',
       '/lbaas/listeners?provisioning_status=ERROR&fields=id&limit={cap}'], None, 'listeners', None),
 ]
-# Trend-only counts (kind=busy: graph, no trigger): servers that are not running.
+
 PROJECT_MID_TRENDS = [
     ('nova', 'servers_shutoff', ['/servers?status=SHUTOFF&limit={cap}'], None, 'servers', None),
     ('nova', 'servers_paused', ['/servers?status=PAUSED&limit={cap}'], None, 'servers', None),
@@ -239,16 +225,12 @@ PROJECT_MID_STATES = [
                                     '/zones?status=PENDING&limit={cap}'], None, 'zones',
      lambda o: str(o.get('status') or '').upper() == 'PENDING', ('updated_at', 'created_at')),
 ]
-# (service, check) that only an admin can read: not run with scope = project
 CLOUD_ONLY_CHECKS = {
     ('glance', 'stores'), ('octavia', 'amphorae_error'), ('octavia', 'amphorae_booting'),
     ('octavia', 'amphorae_deleting'),
 }
-# Cross-project filters dropped with scope = project
 ALL_PROJECTS_RE = re.compile(r'&(all_tenants=1|global_tenant=true)')
 
-# Quota usage of the token's project (mid tier, scope = project).
-# nova / cinder: GET /limits -> absolute {max*, total*Used}
 QUOTA_LIMITS = {
     'nova': [('instances', 'maxTotalInstances', 'totalInstancesUsed'),
              ('cores', 'maxTotalCores', 'totalCoresUsed'),
@@ -271,15 +253,12 @@ AGENT_SOURCES = [
     {'service': 'ironic', 'check': 'conductors', 'paths': ['/v1/conductors', '/conductors'],
      'key': 'conductors', 'headers': {'X-OpenStack-Ironic-API-Version': '1.49'}},
 ]
-# Everything not listed is 'availability'. nova-compute down hits one host's
-# VMs, not the product, so it is 'stability' (plan: trigger table).
 AGENT_IMPACT = {'nova-compute': 'stability'}
 
 CINDER_HDR = {'OpenStack-API-Version': CINDER_COUNT_MV}
 IRONIC_HDR = {'X-OpenStack-Ironic-API-Version': '1.8'}
 
 # ---- mid: ask for a count, never list everything ----
-# (service, what, paths, headers, list key, client-side filter or None)
 MID_COUNTS = [
     ('cinder', 'volumes_error',
      ['/volumes?status=error&all_tenants=1&with_count=true&limit=1'], CINDER_HDR, 'volumes', None),
@@ -305,7 +284,6 @@ MID_COUNTS = [
     ('ironic', 'nodes_maintenance',
      ['/v1/nodes?maintenance=true&fields=uuid&limit={cap}',
       '/nodes?maintenance=true&fields=uuid&limit={cap}'], IRONIC_HDR, 'nodes', None),
-    # error states that plain status=error does not include
     ('cinder', 'volumes_error_deleting',
      ['/volumes?status=error_deleting&all_tenants=1&with_count=true&limit=1'], CINDER_HDR,
      'volumes', None),
@@ -331,14 +309,6 @@ def _is(field, value):
 
 
 # ---- mid: resources in a transitional state (creating / deleting / ...) ----
-# Every scan gives two counters:
-#   <what>        kind=busy  in that state right now (trend graph, no trigger)
-#   <what>_stuck  kind=bad   in that state longer than stuck_minutes (Warning)
-# The server-side filter keeps the list small. The client-side match keeps the
-# count right and detects a filter the API silently ignored (Nova drops
-# task_state unless the role has os_compute_api:servers:allow_all_filters):
-# then both counters are -1 and the call item carries the error.
-# (service, what, paths, headers, list key, match, timestamp fields)
 NOVA_TS = ('updated', 'created')
 OS_TS = ('updated_at', 'created_at')
 IRONIC_TS = ('provision_updated_at', 'updated_at', 'created_at')
@@ -502,18 +472,17 @@ DEFAULTS = {
     'zabbix_port': '10051',
     'zabbix_host': '',
     'item_prefix': 'os.probe',
-    # S3 / Ceph RGW (empty s3_url = no S3 checks)
-    's3_url': '',                # e.g. https://s3-bkk.example.org
-    's3_region': 'us-east-1',    # RGW zonegroup api_name (SigV4 region)
+    's3_url': '',                
+    's3_region': 'bkk',    
     's3_access_key': '',
     's3_secret_key': '',
-    's3_bucket': '',             # this zone's monitoring bucket (canary + replication marker)
-    's3_peer_bucket': '',        # other zone's monitoring bucket (replication lag)
-    's3_static_url': '',         # e.g. https://<bucket>.static-s3-bkk.example.org/
-    's3_zones': '',              # several zones in one section: bkk,non -> s3_<zone>_url / _bucket / _static_url
+    's3_bucket': '',             
+    's3_peer_bucket': '',        
+    's3_static_url': '',         
+    's3_zones': '',              
     # TLS certificate expiry (slow tier)
-    'tls_interfaces': 'public',  # catalog interfaces whose https endpoints are checked
-    'tls_extra': '',             # more endpoints: name=host:port,... e.g. ceph-dashboard=ceph.example.org:8443
+    'tls_interfaces': 'public',  
+    'tls_extra': '',            
 }
 
 S3_CANARY_KEY = 'zbx-canary/rw'
@@ -737,7 +706,6 @@ class Http(object):
         """Returns (status, headers, body). With sink=True body is the byte count.
         Raises ProbeError when there is no HTTP response at all."""
         hdrs = {'Accept': 'application/json',
-                # Nova 415s a bodyless GET without Content-Type; harmless elsewhere
                 'Content-Type': 'application/json'}
         if headers:
             hdrs.update(headers)
@@ -770,7 +738,7 @@ class Http(object):
         except (socket.timeout, OSError) as e:
             self.stats.add(0)
             raise ProbeError('cannot get URL %s: %s' % (url, e or 'timed out'))
-        except Exception as e:  # http.client.* oddities
+        except Exception as e: 
             self.stats.add(0)
             raise ProbeError('cannot get URL %s: %s' % (url, e))
 
@@ -788,7 +756,6 @@ class Probe(object):
         self.project_l2 = num(p.get('project_l2')) == 1
         self.project_tls = num(p.get('project_tls')) == 1
         self.project_quota = self.project and num(p.get('project_quota')) == 1
-        # cloud scope always counts resources; project scope only with project_resources = 1
         self.count_res = not self.project or num(p.get('project_resources')) == 1
         self.project_id, self.project_name = '', ''
         self.quotas = []
@@ -837,7 +804,7 @@ class Probe(object):
         self.tls_ifaces = set(split_csv(p.get('tls_interfaces') if p.get('tls_interfaces') is not None
                                         else 'public'))
         self.tls_extra = split_csv(p.get('tls_extra'))
-        self.tls_eps = {}     # (host, port) -> [service, ...] from the catalog
+        self.tls_eps = {}
         self.stuck_s = max(1, num(p.get('stuck_minutes') or 60)) * 60
         self.cap = max(1, num(p.get('list_cap') or 1000))
         self.deadline_ms = num(p.get(tier + '_deadline_ms') or DEFAULTS[tier + '_deadline_ms'])
@@ -851,7 +818,7 @@ class Probe(object):
         self.http_node = Http(timeout, self.stats, verify, ca, False)
         self.token = ''
         self.user_id = ''
-        self.ep = {}          # service -> {type, name, base, root, port}
+        self.ep = {}
         self.lock = threading.Lock()
         self.checks, self.agents, self.resources = [], {}, []
         self.started = 0
@@ -877,7 +844,6 @@ class Probe(object):
         return ALL_PROJECTS_RE.sub('', p) if self.project else p
 
     def skipped_check(self, check, svc=None):
-        # entries may use wildcards: heat:stacks* = every Heat stack check
         c = str(check or '').lower()
         names = [c] + (['%s:%s' % (str(svc).lower(), c)] if svc else [])
         return any(fnmatch.fnmatchcase(n, pat) for pat in self.skip_checks for n in names)
@@ -1108,7 +1074,7 @@ class Probe(object):
             name, base = by_type[t]
             if not base:
                 continue
-            if svc == 'keystone':                     # bare or /v3 -> exactly one /v3
+            if svc == 'keystone':
                 base = re.sub(r'/v3$', '', base) + '/v3'
             self.ep[svc] = {'type': t, 'name': name, 'base': base,
                             'root': root_of(base), 'port': port_of(base)}

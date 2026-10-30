@@ -1,5 +1,5 @@
 {
-  "zabbix": {"url": "https://stellar.nipa.cloud/api_jsonrpc.php"},
+  "zabbix": {"url": "https://<url>/api_jsonrpc.php"},
   "root": "NIPA Cloud Projects",
   "dashboard": "OpenStack · ProjectScope",
   "sla": {

@@ -1,5 +1,5 @@
 {
-  "zabbix": {"url": "https://stellar.nipa.cloud/api_jsonrpc.php"},
+  "zabbix": {"url": "https://<zabbix_url>/api_jsonrpc.php"},
   "root": "NIPA Cloud",
   "sla": {
     "slo": 99.9,
@@ -17,8 +17,8 @@
   ],
   "azs": [
     {
-      "name": "STG-ORG",
-      "zabbix_host": "nipa-openstack-api",
+      "name": "az",
+      "zabbix_host": "zabbix_host_name",
       "quorum_fail": 2,
       "s3_zones": ["BKK", "NON"],
       "controllers": [

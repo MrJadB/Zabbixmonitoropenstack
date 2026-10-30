@@ -139,7 +139,7 @@ def fourxx_expr(key, accept=True):
 items, llds = [], []
 MON = dict(service='monitoring', layer='L3', impact='monitoring')
 
-# ------------------------------------------------------------------ masters
+#masters
 MASTER_DESC = {
     'fast': ('Every {$OS_FAST.INTERVAL} by systemd timer os-probe-fast.timer on the proxy host.\n'
              'L2 root per VIP and per node, Horizon login, token, L3 functional probes,\n'
@@ -159,7 +159,7 @@ for tier in ('fast', 'mid', 'slow'):
         'description': MASTER_DESC[tier] + '\nPushed by: os_probe.py --tier %s --send' % tier,
         'tags': tags(service='monitoring', layer='L3', component='os-probe-' + tier)})
 
-# ------------------------------------------------------------------ per-tier common items
+#per-tier common items
 FAIL, NODATA = {}, {}
 for tier in ('fast', 'mid', 'slow'):
     m, p, comp = M[tier], 'os.%s.' % tier, 'os-probe-' + tier
@@ -211,7 +211,7 @@ for tier in ('fast', 'mid', 'slow'):
         if it['key'] == p + 'collect_ok':
             it['triggers'] = [FAIL[tier]]
 
-# ------------------------------------------------------------------ fast fixed
+#fast fixed
 f, m = 'os.fast.', M['fast']
 NET = trig('OpenStack probe host cannot reach any endpoint',
            '%s=1' % fn('last', f + 'probe_net_down'), 'HIGH',
@@ -285,7 +285,7 @@ for it in items:
                                             component='stores'),
                                deps=[FAIL['fast']], manual=True)]
 
-# ------------------------------------------------------------------ fast LLD: API checks
+#fast LLD: API checks
 CHECK_FIELDS = ['id', 'service', 'label', 'check', 'layer', 'target', 'node', 'impact', 'at']
 ck = 'os.api.status["{#ID}"]'
 P_DOWN = trig('OpenStack {#LABEL}: {#CHECK} @ {#TARGET} is down (HTTP {ITEM.VALUE})',
@@ -341,7 +341,7 @@ llds[-1]['filter'] = {'evaltype': 'AND', 'conditions': [
     {'macro': '{#NODE}', 'value': '{$OS_SKIP.HOST.NOT_MATCHES}',
      'operator': 'NOT_MATCHES_REGEX', 'formulaid': 'B'}]}
 
-# ------------------------------------------------------------------ fast LLD: service records
+#fast LLD: service records
 AG_FIELDS = ['id', 'service', 'label', 'binary', 'host', 'zone', 'impact']
 sk = 'os.agent.state["{#ID}"]'
 atg = tags(service='{#SERVICE}', layer='L3', component='{#BINARY}', node='{#HOST}')
@@ -382,7 +382,7 @@ llds[-1]['filter'] = {'evaltype': 'AND', 'conditions': [
     {'macro': '{#HOST}', 'value': '{$OS_SKIP.HOST.NOT_MATCHES}',
      'operator': 'NOT_MATCHES_REGEX', 'formulaid': 'B'}]}
 
-# ------------------------------------------------------------------ mid / slow calls LLD
+#mid / slow calls LLD
 for tier in ('mid', 'slow'):
     ck = 'os.%s.call.status["{#ID}"]' % tier
     ctg = tags(service='{#SERVICE}', layer='{#LAYER}', component='{#CHECK}')
@@ -418,7 +418,7 @@ for tier in ('mid', 'slow'):
             'operations': [{'operationobject': 'TRIGGER_PROTOTYPE', 'operator': 'LIKE',
                             'value': 'failing', 'severity': 'HIGH'}]}]))
 
-# ------------------------------------------------------------------ mid / slow resources LLD
+#mid / slow resources LLD
 RES_FIELDS = ['id', 'service', 'label', 'what', 'kind']
 for tier in ('mid', 'slow'):
     rk = 'os.%s.res["{#ID}"]' % tier
@@ -442,7 +442,7 @@ for tier in ('mid', 'slow'):
             'operations': [{'operationobject': 'TRIGGER_PROTOTYPE', 'operator': 'LIKE',
                             'value': '=', 'discover': 'NO_DISCOVER'}]}]))
 
-# ------------------------------------------------------------------ mid fixed
+#mid fixed
 d, m = 'os.mid.', M['mid']
 ntg = tags(service='nova', layer='L3', component='hypervisors')
 items += [
@@ -565,7 +565,7 @@ llds[-1]['filter'] = {'evaltype': 'AND', 'conditions': [
 
 # Neutron network IP availability LLD: removed (capacity only)
 
-# ------------------------------------------------------------------ OpenSDN (mid)
+#OpenSDN (mid)
 sk = 'os.sdn.state["{#ID}"]'
 stg = tags(service='opensdn', layer='L3', component='{#MODULE}', node='{#HOST}')
 sdn_down = trig('OpenStack OpenSDN: {#MODULE} on {#HOST} is not functional',
@@ -619,7 +619,7 @@ llds.append(lld(
           'Every instance of this module is down - the SDN function it provides is gone.',
           deps=[FAIL['mid']], recovery='%s>0' % fn('last', mk))]))
 
-# ------------------------------------------------------------------ slow fixed
+#slow fixed
 s, m = 'os.slow.', M['slow']
 otg = tags(service='octavia', layer='L3', component='amphora')
 cert_hi = trig('OpenStack Octavia: amphora certificate expires in {ITEM.VALUE} days',
@@ -663,7 +663,7 @@ items[-2]['triggers'] = [cert_hi, trig(
 # per-endpoint "TLS certificates" LLD below.
 items[-1]['description'] += ' Alerts come from the TLS certificates discovery (one row per endpoint).'
 
-# ------------------------------------------------------------------ slow LLD: TLS certificates
+#slow LLD: TLS certificates
 TLS_FIELDS = ['id', 'service', 'label', 'host', 'port']
 tk, te = 'os.tls.days["{#ID}"]', 'os.tls.error["{#ID}"]'
 ttg = tags(service='{#SERVICE}', layer='L2', component='tls_cert', endpoint='{#ID}')
@@ -704,7 +704,7 @@ llds.append(lld(
          'auth_url, horizon_url, novnc_url, s3_url, s3_static_url, tls_extra. One TLS handshake '
          'per row, no API call.'))
 
-# ------------------------------------------------------------------ S3 / Ceph RGW fixed
+#S3 / Ceph RGW fixed
 # The S3 checks themselves (root, static_web, canary, list_buckets, head_bucket,
 # repl_write, repl_read) are rows of the API checks / Mid calls LLDs (service=s3).
 s3tg = tags(service='s3', layer='L3', component='canary')
@@ -846,7 +846,7 @@ doc = {'zabbix_export': {'version': '6.0', 'date': '2026-10-21T00:00:00Z',
 
 
 class Dumper(yaml.SafeDumper):
-    def ignore_aliases(self, data):      # Zabbix import does not read YAML anchors
+    def ignore_aliases(self, data):
         return True
 
 
